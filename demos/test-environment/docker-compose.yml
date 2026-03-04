@@ -1,0 +1,114 @@
+# NeuroSentry Test Environment
+# Complete stack for testing and development
+
+version: '3.8'
+
+services:
+  # NeuroSentry Agent (privileged mode for eBPF)
+  neurosentry:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    privileged: true
+    pid: host
+    network_mode: host
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /sys/fs/bpf:/sys/fs/bpf
+      - ./neurosentry-config.yaml:/etc/neurosentry/config.yaml:ro
+    ports:
+      - "2112:2112"
+    depends_on:
+      - prometheus
+      - grafana
+    restart: unless-stopped
+
+  # Target: PyTorch inference server
+  inference-server:
+    image: pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+    command: >
+      bash -c "pip install transformers accelerate fastapi uvicorn && \
+               python -c 'import torch; print(f\"PyTorch {torch.__version__} ready\")' && \
+               sleep infinity"
+    volumes:
+      - ./test-models:/models:ro
+    environment:
+      - MODEL_PATH=/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.2.2
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana-datasources:/etc/grafana/provisioning/datasources:ro
+    restart: unless-stopped
+
+  # Loki for log aggregation (optional)
+  loki:
+    image: grafana/loki:2.9.2
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  # Promtail for log collection
+  promtail:
+    image: grafana/promtail:2.9.2
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+    restart: unless-stopped
+
+  # Attack simulation container
+  attacker:
+    image: alpine:3.19
+    command: sh -c "apk add --no-cache curl nmap && sleep infinity"
+    network_mode: host
+    privileged: true
+    volumes:
+      - ./attack-scripts:/scripts:ro
+
+volumes:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+
+# Example attack scripts directory (create manually)
+# ./attack-scripts/
+#   - exfiltrate-model.sh
+#   - pickle-bomb.py
+#   - container-escape.sh

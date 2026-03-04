@@ -1,0 +1,131 @@
+# NeuroSentry Capture The Model Challenge
+# Black Hat USA Arsenal 2026
+#
+# Usage: docker-compose up -d
+#        docker exec -it attacker sh
+
+version: "3.8"
+
+services:
+  neurosentry:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: neurosentry:ctf-latest
+    container_name: neurosentry
+    privileged: true
+    pid: host
+    network_mode: host
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - ./config/neurosentry.yaml:/etc/neurosentry/config.yaml:ro
+      - model-data:/models:ro
+      - ./logs:/var/log/neurosentry
+    environment:
+      - NEUROSENTRY_LOG_LEVEL=info
+      - NEUROSENTRY_MODE=enforce
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2112/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    cap_add:
+      - BPF
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_RESOURCE
+    security_opt:
+      - apparmor:unconfined
+    labels:
+      - "neurosentry.challenge=true"
+      - "neurosentry.role=protection"
+
+  attacker:
+    image: alpine:3.19
+    container_name: attacker
+    privileged: true
+    network_mode: host
+    volumes:
+      - model-data:/target:ro
+      - ./workspace:/workspace
+      - ./scoring:/scoring:ro
+    command: sleep infinity
+    restart: unless-stopped
+    cap_add:
+      - ALL
+    security_opt:
+      - apparmor:unconfined
+    labels:
+      - "neurosentry.challenge=true"
+      - "neurosentry.role=attacker"
+
+  scoring:
+    build:
+      context: ./scoring
+      dockerfile: Dockerfile
+    container_name: scoring
+    network_mode: host
+    volumes:
+      - model-data:/models:ro
+      - ./workspace:/workspace:ro
+      - ./logs:/var/log/neurosentry:ro
+      - ./scoring/data:/data
+    environment:
+      - SCORING_WEBHOOK=${SCORING_WEBHOOK:-}
+      - CHALLENGE_DURATION=900
+      - MODEL_PATH=/models/llama-2-7b.safetensors
+    # Note: ports directive is ignored with network_mode: host
+    # Scoring server listens on port 8080
+    restart: unless-stopped
+    labels:
+      - "neurosentry.challenge=true"
+      - "neurosentry.role=scoring"
+
+  # Optional: Prometheus for metrics visualization
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: prometheus
+    network_mode: host
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    labels:
+      - "neurosentry.challenge=true"
+
+  # Optional: Grafana for dashboard
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: grafana
+    network_mode: host
+    volumes:
+      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./config/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=neurosentry
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    labels:
+      - "neurosentry.challenge=true"
+
+volumes:
+  model-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  default:
+    name: neurosentry-ctf
+    driver: bridge

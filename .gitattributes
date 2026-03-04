@@ -1,0 +1,66 @@
+# Auto-detect text files and perform LF normalization
+* text=auto
+
+# Go files
+*.go text eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+
+# Configuration files
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+
+# Documentation
+*.md text eol=lf
+*.txt text eol=lf
+
+# Makefiles
+Makefile text eol=lf
+
+# Docker files
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+
+# eBPF C source files
+*.c text eol=lf
+*.h text eol=lf
+
+# Binary files - treat as binary and don't diff
+*.o binary
+*.so binary
+*.a binary
+*.bpf.o binary
+
+# Generated Go files from bpf2go
+*_bpfel.go linguist-generated=true
+*_bpfeb.go linguist-generated=true
+
+# Lock files
+go.sum text eol=lf
+
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text eol=lf
+
+# Fonts
+*.ttf binary
+*.woff binary
+*.woff2 binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+
+# Certificates and keys (should not be in repo, but if they are)
+*.pem binary
+*.key binary
+*.crt binary

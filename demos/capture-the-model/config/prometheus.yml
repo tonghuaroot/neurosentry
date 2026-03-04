@@ -1,0 +1,26 @@
+# Prometheus configuration for NeuroSentry CTF Challenge
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    challenge: 'capture-the-model'
+    conference: 'black-hat-arsenal-2026'
+
+scrape_configs:
+  # NeuroSentry metrics
+  - job_name: 'neurosentry'
+    static_configs:
+      - targets: ['localhost:2112']
+    metrics_path: /metrics
+
+  # Scoring server metrics
+  - job_name: 'scoring'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: /metrics
+
+  # Node exporter for system metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']

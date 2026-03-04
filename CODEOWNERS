@@ -1,0 +1,35 @@
+# NeuroSentry Code Owners
+# These owners will be requested for review when someone opens a pull request
+# that modifies code that they own.
+#
+# The last matching pattern takes precedence.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owners for everything in the repo
+*                           @neurosentry/maintainers
+
+# eBPF programs - require security review
+/pkg/bpf/                   @neurosentry/maintainers @neurosentry/security
+/pkg/bpf/*.c                @neurosentry/maintainers @neurosentry/security
+
+# Security-sensitive code
+/pkg/policy/                @neurosentry/maintainers @neurosentry/security
+SECURITY.md                 @neurosentry/maintainers @neurosentry/security
+
+# Configuration and deployment
+/deploy/                    @neurosentry/maintainers @neurosentry/devops
+/deploy/kubernetes/         @neurosentry/maintainers @neurosentry/devops
+/.github/                   @neurosentry/maintainers
+
+# Documentation
+/docs/                      @neurosentry/maintainers
+*.md                        @neurosentry/maintainers
+
+# CI/CD
+/.github/workflows/         @neurosentry/maintainers @neurosentry/devops
+.golangci.yml               @neurosentry/maintainers
+Makefile                    @neurosentry/maintainers
+
+# Go module files
+go.mod                      @neurosentry/maintainers
+go.sum                      @neurosentry/maintainers

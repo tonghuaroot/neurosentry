@@ -1,0 +1,144 @@
+# NeuroSentry AI Runtime Protection System - Ralph Configuration
+# Simplified configuration for autonomous development
+
+cli:
+  backend: "claude"
+
+core:
+  specs_dir: "./specs/"
+  output_dir: "./.agent/"
+  docs_dir: "./docs/"
+
+event_loop:
+  starting_event: "neurosentry.start"
+  prompt: |
+    You are developing NeuroSentry, an eBPF-based AI runtime protection system for Black Hat USA Arsenal 2026.
+
+    ## Project Mission
+    Protect AI model assets at the kernel level using eBPF technology.
+
+    ## Four Core Features
+    1. Model FIM - Block unauthorized access to .safetensors, .gguf, .pth files
+    2. Network Containment - XDP-based exfiltration prevention
+    3. Framework Observability - Uprobes on PyTorch/TensorFlow
+    4. Pickle Protection - Detect dangerous pickle deserialization
+
+    ## Current Status
+    - eBPF C programs exist but have compilation issues
+    - Go agent compiles and runs on macOS
+    - Test server: ubuntu@13.209.69.99 (Ubuntu 24.04, kernel 6.14)
+    - Repository: https://github.com/tonghuaroot/neurosentry
+
+    ## Your Tasks
+    1. Fix eBPF compilation issues (vmlinux.h, struct definitions)
+    2. Test eBPF programs on the Linux server
+    3. Create "Capture The Model" CTF challenge
+    4. Add integration tests
+    5. Create documentation for Arsenal submission
+    6. Prepare demo materials
+
+    ## Available Resources
+    - SSH: ssh -i /Users/ben/Documents/99-Keys/java-sec-code.pem ubuntu@13.209.69.99
+    - Build: make build
+    - Test: go test ./...
+
+    Work systematically through each task. When eBPF compilation is fixed, test on server.
+    When tests pass, update documentation. Complete Arsenal submission requirements.
+
+    CRITICAL: Ensure eBPF programs compile and load on Linux kernel 6.14.
+
+  completion_promise: "ARSENAL_SUBMISSION_READY"
+  max_iterations: 150
+  max_runtime_seconds: 21600
+
+hats:
+  developer:
+    name: "NeuroSentry Developer"
+    description: "Full-stack developer for eBPF and Go components"
+    triggers: ["neurosentry.start", "task.next"]
+    publishes: ["task.complete", "verify.request"]
+    instructions: |
+      ## NEUROSENTRY DEVELOPER
+
+      Implement and fix all NeuroSentry components.
+
+      ### Priority 1: Fix eBPF Compilation
+
+      The eBPF programs (LSM, XDP, Uprobe) fail to compile due to:
+      - Missing vmlinux.h with proper kernel struct definitions
+      - Incomplete type definitions
+      - Missing macro definitions
+
+      Fix approach:
+      1. Generate proper vmlinux.h using bpftool on Linux server
+      2. Or use libbpf-bootstrap template as reference
+      3. Ensure all eBPF programs compile with clang -target bpf
+
+      Compile command:
+      ```bash
+      ssh -i /Users/ben/Documents/99-Keys/java-sec-code.pem ubuntu@13.209.69.99
+      cd /tmp/neurosentry_test
+      clang -target bpf -g -O2 -I pkg/bpf/ -c pkg/bpf/neurosentry_lsm.c -o neurosentry_lsm.o
+      ```
+
+      ### Priority 2: Test eBPF Loading
+
+      After compilation, test loading:
+      ```bash
+      sudo bpftool prog load neurosentry_lsm.o /sys/fs/bpf/neurosentry_lsm
+      bpftool prog show
+      ```
+
+      ### Priority 3: Create CTF Challenge
+
+      Create "Capture The Model" challenge in demos/capture-the-model/:
+      - docker-compose.yml with full environment
+      - Challenge instructions
+      - Protected model file
+      - Scoring system
+
+      ### Priority 4: Integration Tests
+
+      Create tests/ directory with:
+      - Integration tests for eBPF loading
+      - End-to-end tests with mock scenarios
+      - Performance benchmarks
+
+      ### Priority 5: Documentation
+
+      Create for Arsenal submission:
+      - README.md (quick start, architecture)
+      - USER_GUIDE.md (installation, configuration)
+      - DEMO_GUIDE.md (CTF challenge setup)
+
+      ### Output
+      After each task, mark it complete and move to next.
+      Commit and push changes to GitHub.
+
+  tester:
+    name: "QA Tester"
+    description: "Tests all components on Linux server"
+    triggers: ["verify.request"]
+    publishes: ["test.complete", "task.next"]
+    instructions: |
+      ## QA TESTER
+
+      Test NeuroSentry on the Linux server.
+
+      ### Test Steps:
+      1. SSH to server
+      2. Build latest code
+      3. Test eBPF compilation
+      4. Test eBPF loading
+      5. Test Go agent
+      6. Run integration tests
+
+      ### Test Results:
+      Report all findings. If tests fail, identify the issue
+      and mark task for developer to fix.
+
+      ### Success Criteria:
+      - All eBPF programs compile
+      - eBPF programs load without verifier errors
+      - Go agent runs and exports metrics
+      - Integration tests pass

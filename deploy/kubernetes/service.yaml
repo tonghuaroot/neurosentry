@@ -1,0 +1,38 @@
+# NeuroSentry Kubernetes Service
+# Exposes metrics for Prometheus scraping
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: neurosentry-metrics
+  namespace: neurosentry
+  labels:
+    app: neurosentry
+    component: metrics
+spec:
+  selector:
+    app: neurosentry
+  ports:
+    - name: metrics
+      port: 2112
+      targetPort: 2112
+      protocol: TCP
+  type: ClusterIP
+
+---
+# ServiceMonitor for Prometheus Operator (optional)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: neurosentry
+  namespace: neurosentry
+  labels:
+    app: neurosentry
+spec:
+  selector:
+    matchLabels:
+      app: neurosentry
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

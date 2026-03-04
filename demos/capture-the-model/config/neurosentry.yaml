@@ -1,0 +1,64 @@
+# NeuroSentry Configuration for Capture The Model Challenge
+# Black Hat USA Arsenal 2026
+
+protection:
+  # Model File Integrity Monitoring
+  model_fim:
+    enabled: true
+    protected_extensions:
+      - .safetensors
+      - .gguf
+      - .pth
+      - .pt
+      - .pkl
+      - .bin
+    protected_paths:
+      - /models
+      - /target
+    enforce_mode: true
+    log_all_access: true
+    trusted_containers:
+      - neurosentry.role=scoring
+
+  # Network Containment
+  network_containment:
+    enabled: true
+    use_tc: true
+    allowed_egress:
+      - 127.0.0.0/8      # Localhost (scoring server, metrics)
+      - 10.0.0.0/8       # Docker internal
+      - 172.16.0.0/12    # Docker internal
+    block_exfiltration: true
+    exfil_threshold_mb: 50
+    allow_dns: false
+
+  # Pickle Protection
+  pickle_protection:
+    enabled: true
+    dangerous_symbols:
+      - "os.system"
+      - "eval"
+      - "exec"
+      - "__import__"
+      - "subprocess"
+    block_on_detect: true
+
+  # PyTorch Observability
+  pytorch_observability:
+    enabled: true
+    monitor_model_loads: true
+
+# Agent Configuration
+agent:
+  metrics_port: 2112
+  log_level: info
+  log_format: json
+  kubernetes_enabled: false
+
+# BPF Configuration
+bpf:
+  log_level: 2
+  ring_buffer_size_kb: 512
+
+# Policy Path
+policy_path: /etc/neurosentry/policy.yaml

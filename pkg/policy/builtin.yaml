@@ -1,0 +1,126 @@
+# NeuroSentry Built-in Security Policy
+# This file defines the default security rules for AI inference protection
+
+version: "1.0"
+metadata:
+  name: "neurosentry-builtin"
+  description: "Default security policy for AI inference environments"
+  severity: "medium"
+
+# Rules are evaluated in order; first match wins
+rules:
+  # Rule: Block all unauthorized access to model weight files
+  - name: "block-unauthorized-model-access"
+    description: "Block any process not in trusted list from reading model files"
+    enabled: true
+    condition:
+      type: "file_access"
+      extensions: [".safetensors", ".gguf", ".pth", ".pt", ".pkl", ".bin"]
+    action: "block"
+    severity: "high"
+    alert: true
+
+  # Rule: Alert on any model load event (audit trail)
+  - name: "audit-model-loads"
+    description: "Log all model loading operations for audit trail"
+    enabled: true
+    condition:
+      type: "model_load"
+    action: "allow"
+    severity: "info"
+    alert: false
+
+  # Rule: Block dangerous pickle operations
+  - name: "block-pickle-bombs"
+    description: "Block pickle deserialization with dangerous symbols in stack"
+    enabled: true
+    condition:
+      type: "pickle_dangerous"
+    action: "block"
+    severity: "critical"
+    alert: true
+    response: "terminate_process"
+
+  # Rule: Block network exfiltration attempts
+  - name: "block-model-exfiltration"
+    description: "Block large outbound transfers to unknown destinations"
+    enabled: true
+    condition:
+      type: "network_egress"
+      size_threshold_mb: 100
+      destinations: ["any"]
+    action: "block"
+    severity: "critical"
+    alert: true
+
+  # Rule: Allow internal Kubernetes pod-to-pod communication
+  - name: "allow-k8s-internal"
+    description: "Allow traffic within Kubernetes pod network"
+    enabled: true
+    condition:
+      type: "network_egress"
+      destinations: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+    action: "allow"
+    severity: "info"
+
+  # Rule: Allow DNS lookups
+  - name: "allow-dns"
+    description: "Allow DNS queries"
+    enabled: true
+    condition:
+      type: "network_egress"
+      port: 53
+      protocol: "udp"
+    action: "allow"
+    severity: "info"
+
+  # Rule: Detect model substitution attacks
+  - name: "detect-model-substitution"
+    description: "Alert when model hash changes unexpectedly"
+    enabled: true
+    condition:
+      type: "model_load"
+      hash_mismatch: true
+    action: "allow"
+    severity: "high"
+    alert: true
+
+# Response actions for different threat types
+responses:
+  terminate_process:
+    enabled: true
+    method: "sigkill"
+  block_network:
+    enabled: true
+    duration: "5m"
+  quarantine_container:
+    enabled: false
+    require_kubernetes: true
+
+# Alert settings
+alerts:
+  webhook: ""
+  silence_seconds: 300
+  rate_limit: 10
+  rate_limit_window: "1m"
+
+# Trusted entities (can be overridden by config)
+trusted:
+  processes:
+    - name: "python*"
+      reason: "Inference server"
+    - name: "triton-server"
+      reason: "NVIDIA Triton"
+    - name: "torchserve"
+      reason: "PyTorch Serve"
+  containers:
+    - label: "app=inference-server"
+    - label: "component=model-serving"
+
+# Exemptions
+exemptions:
+  paths:
+    - "/var/log/*"
+    - "/tmp/*"
+  users:
+    - uid: 0  # root (use with caution)

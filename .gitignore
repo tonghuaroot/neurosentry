@@ -1,0 +1,58 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# Build output
+bin/
+build/
+dist/
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# eBPF object files (except generated bpfel files needed for build)
+*.bpf.o
+!*_bpfel.o
+
+# Kernel headers
+pkg/bpf/headers/vmlinux.h
+
+# Temporary files
+*.tmp
+*.log
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+
+# Test artifacts
+test-results/
+coverage/
+.worktrees/
+
+# Ralph orchestration state
+.ralph/
+node_modules/

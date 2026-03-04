@@ -1,0 +1,103 @@
+# Prometheus Configuration for NeuroSentry
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'neurosentry-test'
+    environment: 'development'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
+scrape_configs:
+  # NeuroSentry Agent Metrics
+  - job_name: 'neurosentry'
+    static_configs:
+      - targets: ['host.docker.internal:2112']
+        labels:
+          service: 'neurosentry'
+          component: 'agent'
+    scrape_interval: 10s
+
+  # Node Exporter (optional - for host metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+
+  # cAdvisor (optional - for container metrics)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+
+  # Kubernetes API Server (if running in K8s)
+  - job_name: 'kubernetes-apiservers'
+    kubernetes_apiserver: null
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+        action: keep
+        regex: default;kubernetes;https
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+# Alert rules (inline for demo)
+# In production, use separate files
+groups:
+  - name: neurosentry_alerts
+    interval: 30s
+    rules:
+      # High threat detection rate
+      - alert: NeuroSentryHighThreatRate
+        expr: rate(neurosentry_threats_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High threat detection rate"
+          description: "{{ $value }} threats/sec detected"
+
+      # Blocked model access
+      - alert: NeuroSentryModelAccessBlocked
+        expr: increase(neurosentry_events_total{event_type="file_blocked"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Model access blocked"
+          description: "Unauthorized model access attempt detected"
+
+      # BPF errors
+      - alert: NeuroSentryBPFErrors
+        expr: increase(neurosentry_bpf_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "BPF errors detected"
+          description: "{{ $value }} BPF errors in the last 5 minutes"
+
+      # Agent down
+      - alert: NeuroSentryAgentDown
+        expr: up{job="neurosentry"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NeuroSentry agent is down"
+          description: "NeuroSentry agent has been down for more than 2 minutes"

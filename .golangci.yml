@@ -1,0 +1,50 @@
+# golangci-lint configuration for NeuroSentry
+# Compatible with golangci-lint v1.64.x
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    # Core linters
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # Security linters
+    - gosec
+    # Code quality linters
+    - unconvert
+    - exhaustive
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+      - shadow
+
+  gosec:
+    excludes:
+      - G104  # Audit errors not checked (we handle this with errcheck)
+
+  staticcheck:
+    checks:
+      - all
+      - -ST1000  # Package comment style
+      - -ST1003  # Underscore in package name
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+issues:
+  exclude-dirs:
+    - pkg/bpf
+  exclude-files:
+    - ".*_bpfel\\.go$"
+  exclude-rules:
+    # Exclude generated files
+    - path: "_bpfel\\.go$"
+      linters:
+        - all

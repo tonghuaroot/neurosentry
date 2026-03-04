@@ -1,0 +1,135 @@
+# NeuroSentry Configuration ConfigMap
+# Default configuration for NeuroSentry Agent
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neurosentry-config
+  namespace: neurosentry
+  labels:
+    app: neurosentry
+data:
+  config.yaml: |
+    protection:
+      model_fim:
+        enabled: true
+        protected_extensions:
+          - .safetensors
+          - .gguf
+          - .pth
+          - .pt
+          - .pkl
+          - .bin
+        protected_paths:
+          - /models
+          - /mnt/models
+        enforce_mode: true
+        log_all_access: false
+        trusted_containers:
+          - app=inference-server
+          - component=model-serving
+
+      network_containment:
+        enabled: true
+        use_tc: true  # Use TC instead of XDP for cloud compatibility
+        allowed_egress:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+          - 192.168.0.0/16
+        block_exfiltration: true
+        exfil_threshold_mb: 100
+        allow_dns: true
+
+      pickle_protection:
+        enabled: true
+        dangerous_symbols:
+          - "os.system"
+          - "eval"
+          - "exec"
+          - "__import__"
+          - "subprocess"
+          - "compile"
+        block_on_detect: true
+        stack_trace_depth: 16
+
+      pytorch_observability:
+        enabled: true
+        monitor_model_loads: true
+        calculate_hashes: false
+
+    agent:
+      metrics_port: 2112
+      log_level: info
+      log_format: json
+      kubernetes_enabled: true
+      kubelet_path: "/var/lib/kubelet/pod-resources"
+
+    bpf:
+      log_level: 1
+      ring_buffer_size_kb: 256
+      per_cpu_map_size: 1024
+
+    policy_path: /etc/neurosentry/policy.yaml
+
+  policy.yaml: |
+    version: "1.0"
+    metadata:
+      name: "k8s-default-policy"
+      description: "Default security policy for Kubernetes deployments"
+      severity: "medium"
+
+    rules:
+      - name: "block-unauthorized-model-access"
+        description: "Block access to model files from non-inference containers"
+        enabled: true
+        condition:
+          type: "file_access"
+          extensions: [".safetensors", ".gguf", ".pth", ".pt"]
+        action: "block"
+        severity: "high"
+        alert: true
+
+      - name: "block-pickle-bombs"
+        description: "Block pickle deserialization with dangerous patterns"
+        enabled: true
+        condition:
+          type: "pickle_dangerous"
+        action: "block"
+        severity: "critical"
+        alert: true
+        response: "terminate_process"
+
+      - name: "allow-k8s-pod-network"
+        description: "Allow traffic within Kubernetes cluster network"
+        enabled: true
+        condition:
+          type: "network_egress"
+          destinations: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+        action: "allow"
+        severity: "info"
+
+      - name: "block-model-exfiltration"
+        description: "Block large outbound transfers"
+        enabled: true
+        condition:
+          type: "network_egress"
+          size_threshold_mb: 100
+        action: "block"
+        severity: "critical"
+        alert: true
+
+      - name: "allow-dns"
+        description: "Allow DNS queries"
+        enabled: true
+        condition:
+          type: "network_egress"
+          port: 53
+          protocol: "udp"
+        action: "allow"
+        severity: "info"
+
+    alerts:
+      webhook: ""
+      silence_seconds: 300
+      rate_limit: 10
+      rate_limit_window: "1m"
