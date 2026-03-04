@@ -1,0 +1,92 @@
+================================================================================
+                    NeuroSentry Metrics After Attack Simulation
+================================================================================
+
+$ curl http://localhost:2112/metrics | grep neurosentry_
+
+neurosentry_active_connections                0
+neurosentry_bpf_errors_total                  0
+neurosentry_lsm_access_attempts_total         55562
+neurosentry_lsm_blocked_total                 0
+neurosentry_lsm_protected_files_seen          55562
+neurosentry_uprobe_dangerous_ops_total        8
+neurosentry_uprobe_model_loads_total          25
+neurosentry_uprobe_pickle_loads_total         15
+neurosentry_uptime_seconds                    2685.000162019
+neurosentry_xdp_dropped_total                 90
+neurosentry_xdp_packets_total                 44153
+neurosentry_xdp_passed_total                  44153
+
+================================================================================
+                              Attack Simulation Log
+================================================================================
+
+==========================================
+   🔴 开始模拟恶意行为
+==========================================
+=== 1. 创建测试模型文件 ===
+=== 2. 模拟未授权文件访问 ===
+已尝试访问模型文件 60 次
+=== 3. 模拟可疑网络外发 ===
+已发送 60 次外发请求
+=== 4. 模拟恶意 Pickle 行为 ===
+MALICIOUS_PICKLE_EXECUTED (x10)
+已尝试加载恶意 pickle 10 次
+=== 5. 模拟批量文件扫描 ===
+/tmp/test_models/test.pth
+/tmp/test_models/test.safetensors
+/tmp/malicious.pkl
+/tmp/protected_models/secret_model.safetensors
+/tmp/protected_models/llama.gguf
+/tmp/protected_models/proprietary.pth
+
+=== 6. 添加可疑 IP 到 blocked_ips map ===
+Added 93.184.215.14 (example.com) to blocked_ips
+Added 93.184.216.52 to blocked_ips
+
+=== 7. 发送流量到可疑 IP ===
+发送 100+ 请求到 blocked IP 地址
+
+================================================================================
+                           NeuroSentry Startup Log
+================================================================================
+
+2026/02/11 01:45:41 Starting NeuroSentry dev
+2026/02/11 01:45:41 eBPF-based AI Inference Protection System
+2026/02/11 01:45:41 Configuration loaded from: config.yaml
+2026/02/11 01:45:41 Loaded 3 policy rules
+2026/02/11 01:45:41 Initializing eBPF programs...
+2026/02/11 01:45:41 Kernel version 6.14 detected (requires 5.10+)
+2026/02/11 01:45:41 Enabling Model FIM (File Integrity Monitoring)
+2026/02/11 01:45:41   LSM hooks attached successfully
+2026/02/11 01:45:41 Enabling Network Containment (TC)
+2026/02/11 01:45:41 Attached TCX ingress to ens5
+2026/02/11 01:45:41 Attached TCX egress to ens5
+2026/02/11 01:45:41   TC programs attached successfully
+2026/02/11 01:45:41 Enabling Pickle Bomb Protection (Uprobes)
+2026/02/11 01:45:47 Attached PyTorch uprobe to symbol at offset 0x6d2c580
+2026/02/11 01:45:47 Attached PyTorch probes to libtorch_cpu.so
+2026/02/11 01:45:47 Detected Python version: 3.12
+2026/02/11 01:45:47 Attached pickle load uprobe to symbol PyInit__pickle
+2026/02/11 01:45:47   Uprobes attached successfully
+2026/02/11 01:45:47 NeuroSentry is now active and monitoring
+2026/02/11 01:45:47 Metrics available at http://:2112/metrics
+
+================================================================================
+                           Key Detections
+================================================================================
+
+✅ File Access Monitoring (LSM):
+   - 55,562 file access attempts tracked
+   - Protected extensions: .safetensors, .pth, .gguf, .pkl
+
+✅ Network Monitoring (TC):
+   - 44,153 packets monitored
+   - 90 suspicious packets detected (to blocked IPs)
+
+✅ Framework Monitoring (Uprobe):
+   - 25 model loads detected
+   - 15 pickle loads detected
+   - 8 dangerous pickle operations detected
+
+================================================================================

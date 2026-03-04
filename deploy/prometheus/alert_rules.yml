@@ -1,0 +1,92 @@
+groups:
+  - name: neurosentry_security_alerts
+    rules:
+      # Dangerous Pickle Operation Detected
+      - alert: DangerousPickleOperation
+        expr: neurosentry_uprobe_dangerous_ops_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dangerous pickle operation detected"
+          description: "A potentially malicious pickle deserialization was detected. This could indicate a pickle bomb attack or arbitrary code execution attempt."
+
+      # Spike in Pickle Loads (possible attack)
+      - alert: PickleLoadSpike
+        expr: rate(neurosentry_uprobe_pickle_loads_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unusual pickle load activity"
+          description: "High rate of pickle operations detected ({{ $value }}/s). May indicate automated attack or data exfiltration."
+
+      # LSM Blocked File Access
+      - alert: BlockedFileAccess
+        expr: neurosentry_lsm_blocked_total > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Protected file access blocked"
+          description: "Attempted access to a protected AI model file was blocked. Check for unauthorized access attempts."
+
+      # LSM Access Attempts Spike
+      - alert: FileAccessSpike
+        expr: rate(neurosentry_lsm_access_attempts_total[5m]) > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High file access activity on protected files"
+          description: "Unusually high access attempts to protected model files ({{ $value }}/s)."
+
+      # XDP Dropped Packets Spike (potential DDoS or exfiltration)
+      - alert: NetworkDropSpike
+        expr: rate(neurosentry_xdp_dropped_total[1m]) > 1000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High network drop rate"
+          description: "XDP is dropping {{ $value }} packets/s. May indicate network attack or blocked exfiltration."
+
+      # High Drop Rate Percentage
+      - alert: HighDropRatio
+        expr: (neurosentry_xdp_dropped_total / neurosentry_xdp_packets_total) > 0.5
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "High packet drop ratio"
+          description: "More than 50% of packets are being dropped. Review network containment policy."
+
+      # BPF Errors
+      - alert: BPFErrors
+        expr: neurosentry_bpf_errors_total > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "eBPF program errors"
+          description: "eBPF programs are encountering errors. Security monitoring may be compromised."
+
+      # NeuroSentry Down
+      - alert: NeuroSentryDown
+        expr: up{job="neurosentry"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "NeuroSentry is down"
+          description: "NeuroSentry security agent is not responding. AI infrastructure is unprotected."
+
+      # Model Load Without Authorization
+      - alert: UnauthorizedModelLoad
+        expr: increase(neurosentry_uprobe_model_loads_total[1m]) > 0 and on() (hour() < 6 or hour() > 22)
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Model loaded during off-hours"
+          description: "AI model was loaded outside business hours. Verify this is authorized activity."

@@ -1,0 +1,77 @@
+# NeuroSentry Default Configuration
+# This file provides sensible defaults for production deployments
+
+protection:
+  # Model File Integrity Monitoring
+  model_fim:
+    enabled: true
+    protected_extensions:
+      - .safetensors
+      - .gguf
+      - .pth
+      - .pt
+      - .pkl
+      - .bin
+      - .h5
+    protected_paths:
+      - /models
+      - /mnt/models
+      - /var/lib/models
+    enforce_mode: true
+    log_all_access: false
+    trusted_containers:
+      - app=inference-server
+      - component=model-serving
+
+  # Network Containment
+  network_containment:
+    enabled: true
+    use_tc: true  # Use TC instead of XDP (recommended for cloud environments)
+    allowed_egress:
+      - 10.0.0.0/8      # RFC1918 private network
+      - 172.16.0.0/12   # RFC1918 private network
+      - 192.168.0.0/16  # RFC1918 private network
+      - 127.0.0.0/8     # Loopback
+    block_exfiltration: true
+    exfil_threshold_mb: 100
+    allow_dns: true
+
+  # Pickle Bomb Protection
+  pickle_protection:
+    enabled: true
+    dangerous_symbols:
+      - "os.system"
+      - "eval"
+      - "exec"
+      - "__import__"
+      - "subprocess"
+      - "compile"
+      - "open"
+    block_on_detect: true
+    stack_trace_depth: 16
+
+  # PyTorch Observability
+  pytorch_observability:
+    enabled: true
+    monitor_model_loads: true
+    calculate_hashes: false
+
+# Agent Configuration
+agent:
+  metrics_port: 2112
+  log_level: info          # debug, info, warn, error
+  log_format: json         # json, text
+  alert_webhook: ""        # e.g., http://alertmanager:9093/api/v1/alerts
+  alert_silence_sec: 300   # 5 minutes
+  kubernetes_enabled: true # Enable K8s integration
+  kubelet_path: "/var/lib/kubelet/pod-resources"
+
+# BPF Configuration
+bpf:
+  log_level: 1
+  ring_buffer_size_kb: 256
+  per_cpu_map_size: 1024
+  disable_core: false
+
+# Policy File Path
+policy_path: /etc/neurosentry/policy.yaml

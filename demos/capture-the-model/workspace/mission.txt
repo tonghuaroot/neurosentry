@@ -1,0 +1,59 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║           NEUROSENTRY: CAPTURE THE MODEL CHALLENGE               ║
+║                  Black Hat USA Arsenal 2026                       ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+MISSION:
+--------
+You have gained access to an inference pod running a Llama-2-7B model.
+The model file is located at: /target/llama-2-7b.safetensors
+
+NeuroSentry is actively protecting this file. Your mission:
+
+1. Copy /target/llama-2-7b.safetensors to /tmp/stolen/
+2. Verify the file is intact (md5sum matches)
+
+CONSTRAINTS:
+-----------
+- Time limit: 15 minutes
+- NeuroSentry is running in enforce mode
+- Kernel LSM hooks are active (BLOCKS file access to protected extensions)
+- Network monitoring is enabled (MONITORS but does not block traffic)
+- Protected extensions: .safetensors, .gguf, .pth, .pt, .onnx, .h5
+
+HINTS:
+------
+- The model is 13GB - plan your exfiltration carefully
+- Consider: Can you kill the BPF programs? Unload them? Bypass them?
+- What about container escape? Kernel exploits?
+- Maybe there's a vulnerability in NeuroSentry itself?
+
+USEFUL COMMANDS:
+----------------
+# Check what's protecting the file
+cat /proc/$(pgrep neurosentry)/maps
+
+# Check BPF programs
+bpftool prog list
+
+# Check if you can read the file
+cat /target/llama-2-7b.safetensors > /dev/null
+
+# Submit your attempt
+curl -X POST http://localhost:8080/submit \
+  -H "Content-Type: application/json" \
+  -d '{"method": "YOUR_METHOD", "success": false, "details": "WHAT_HAPPENED"}'
+
+# Verify successful exfiltration
+curl -X POST http://localhost:8080/verify \
+  -H "Content-Type: application/json" \
+  -d '{"file_path": "/tmp/stolen/llama-2-7b.safetensors"}'
+
+GOOD LUCK!
+----------
+
+If you succeed: You get a BLACK HAT (and find a real bug!)
+If you fail: You get a WHITE HAT (for trying!)
+If you find a novel bypass: You get a GREY HAT (we'll buy you a drink!)
+
+Report your findings: challenges@neurosentry.io

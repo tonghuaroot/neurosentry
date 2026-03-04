@@ -1,0 +1,228 @@
+# NeuroSentry Kubernetes DaemonSet
+# Deploys NeuroSentry on every node in the cluster
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: neurosentry
+  labels:
+    name: neurosentry
+    pod-security.kubernetes.io/enforce: privileged
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: neurosentry
+  namespace: neurosentry
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: neurosentry
+rules:
+  # Need to list and watch pods for trusted container identification
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Need to access node information
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+  # Need to modify pod security context for quarantine
+  - apiGroups: [""]
+    resources: ["pods/securitycontext"]
+    verbs: ["update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: neurosentry
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: neurosentry
+subjects:
+  - kind: ServiceAccount
+    name: neurosentry
+    namespace: neurosentry
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: neurosentry-config
+  namespace: neurosentry
+data:
+  config.yaml: |
+    protection:
+      model_fim:
+        enabled: true
+        protected_extensions:
+          - .safetensors
+          - .gguf
+          - .pth
+          - .pkl
+        enforce_mode: true
+        trusted_containers:
+          - app=inference-server
+      network_containment:
+        enabled: true
+        use_tc: true  # Use TC instead of XDP for cloud compatibility
+        allowed_egress:
+          - 10.0.0.0/8
+          - 172.16.0.0/12
+        block_exfiltration: true
+        exfil_threshold_mb: 100
+      pickle_protection:
+        enabled: true
+        block_on_detect: true
+      pytorch_observability:
+        enabled: true
+        monitor_model_loads: true
+    agent:
+      metrics_port: 2112
+      log_level: info
+      kubernetes_enabled: true
+    policy_path: /etc/neurosentry/policy.yaml
+
+  policy.yaml: |
+    version: "1.0"
+    metadata:
+      name: "k8s-inference-protection"
+    rules:
+      - name: "block-unauthorized-model-access"
+        enabled: true
+        condition:
+          type: "file_access"
+          extensions: [".safetensors", ".gguf", ".pth"]
+        action: "block"
+        severity: "high"
+        alert: true
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: neurosentry
+  namespace: neurosentry
+  labels:
+    app: neurosentry
+spec:
+  selector:
+    matchLabels:
+      app: neurosentry
+  template:
+    metadata:
+      labels:
+        app: neurosentry
+    spec:
+      serviceAccountName: neurosentry
+      hostPID: true  # Required for eBPF
+      hostNetwork: true  # Required for XDP
+      tolerations:
+        # Run on all nodes including control plane
+        - operator: Exists
+      initContainers:
+        # Mount /sys/kernel/debug for BPF programs
+        - name: setup-debugfs
+          image: alpine:3.19
+          command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              mount | grep /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug
+              echo "Debugfs mounted successfully"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+      containers:
+        - name: neurosentry
+          image: neurosentry:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true  # Required for eBPF
+            capabilities:
+              add:
+                - BPF
+                - NET_ADMIN
+                - SYS_ADMIN
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: sys-kernel-debug
+              mountPath: /sys/kernel/debug
+            - name: sys-fs-bpf
+              mountPath: /sys/fs/bpf
+            - name: config
+              mountPath: /etc/neurosentry
+              readOnly: true
+            - name: run-neurosentry
+              mountPath: /run/neurosentry
+          resources:
+            limits:
+              memory: "512Mi"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+          ports:
+            - name: metrics
+              containerPort: 2112
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 2112
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 2112
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: sys-kernel-debug
+          hostPath:
+            path: /sys/kernel/debug
+            type: Directory
+        - name: sys-fs-bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: config
+          configMap:
+            name: neurosentry-config
+        - name: run-neurosentry
+          hostPath:
+            path: /run/neurosentry
+            type: DirectoryOrCreate
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neurosentry-metrics
+  namespace: neurosentry
+  labels:
+    app: neurosentry
+spec:
+  selector:
+    app: neurosentry
+  ports:
+    - name: metrics
+      port: 2112
+      targetPort: 2112
+  type: ClusterIP
