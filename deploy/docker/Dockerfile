@@ -2,7 +2,7 @@
 # Multi-stage build for minimal production image
 
 # Build stage
-FROM golang:1.24.0-alpine AS builder
+FROM golang:1.26.1-alpine AS builder
 
 # Install build dependencies (eBPF is pre-compiled, no need for clang/llvm)
 RUN apk add --no-cache \
