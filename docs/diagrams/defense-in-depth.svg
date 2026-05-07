@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <style>
+    .bg { fill: #0d1117; }
+    .layer-app { fill: #161b22; stroke: #30363d; stroke-width: 2; }
+    .layer-ns { fill: #11231a; stroke: #7fb069; stroke-width: 3; }
+    .layer-kernel { fill: #161b22; stroke: #30363d; stroke-width: 2; }
+    .box { fill: #1c2128; stroke: #30363d; stroke-width: 1.5; }
+    .box-ns { fill: #1d2e22; stroke: #7fb069; stroke-width: 2; }
+    .threat { fill: #2a1416; stroke: #f85149; stroke-width: 2; }
+    .accent { fill: #7fb069; }
+    .blue { fill: #58a6ff; }
+    .danger { fill: #f85149; }
+    .text-title { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-size: 52px; font-weight: 600; fill: #7fb069; }
+    .text-subtitle { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-size: 26px; fill: #ffffff; }
+    .text-layer { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-size: 30px; font-weight: 600; fill: #ffffff; }
+    .text-box { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 22px; fill: #ffffff; }
+    .text-box-sub { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 16px; fill: #8b949e; }
+    .text-threat { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 18px; fill: #f85149; }
+    .text-mid { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-size: 22px; fill: #8b949e; font-style: italic; }
+    .text-watermark { font-family: ui-monospace, 'SF Mono', monospace; font-size: 16px; fill: #586069; }
+  </style>
+
+  <rect class="bg" width="1920" height="1080"/>
+
+  <!-- Title -->
+  <text class="text-title" x="960" y="80" text-anchor="middle">Defense-in-Depth — Where NeuroSentry Sits</text>
+  <text class="text-subtitle" x="960" y="120" text-anchor="middle">a kernel-level enforcement layer between AI workloads and the threats targeting them</text>
+
+  <!-- Threats column on the left -->
+  <text class="text-layer" x="180" y="200" text-anchor="middle" fill="#f85149">Threats</text>
+
+  <rect class="threat" x="60" y="240" width="240" height="60" rx="10"/>
+  <text class="text-threat" x="180" y="278" text-anchor="middle">Model theft</text>
+
+  <rect class="threat" x="60" y="320" width="240" height="60" rx="10"/>
+  <text class="text-threat" x="180" y="358" text-anchor="middle">Pickle bomb</text>
+
+  <rect class="threat" x="60" y="400" width="240" height="60" rx="10"/>
+  <text class="text-threat" x="180" y="438" text-anchor="middle">Memory scraping</text>
+
+  <rect class="threat" x="60" y="480" width="240" height="60" rx="10"/>
+  <text class="text-threat" x="180" y="518" text-anchor="middle">Untrusted PID open()</text>
+
+  <rect class="threat" x="60" y="560" width="240" height="60" rx="10"/>
+  <text class="text-threat" x="180" y="598" text-anchor="middle">Network exfil</text>
+
+  <rect class="threat" x="60" y="640" width="240" height="60" rx="10"/>
+  <text class="text-threat" x="180" y="678" text-anchor="middle">mmap-based read</text>
+
+  <!-- Arrowhead marker (red, for threat lines) -->
+  <defs>
+    <marker id="redArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f85149"/>
+    </marker>
+    <marker id="greenArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7fb069"/>
+    </marker>
+  </defs>
+
+  <!-- Threat arrows pointing into the protection wall (endpoints land on layer borders, not inside) -->
+  <line x1="300" y1="270" x2="448" y2="380" stroke="#f85149" stroke-width="2" marker-end="url(#redArrow)" stroke-dasharray="6 4"/>
+  <line x1="300" y1="350" x2="448" y2="408" stroke="#f85149" stroke-width="2" marker-end="url(#redArrow)" stroke-dasharray="6 4"/>
+  <line x1="300" y1="430" x2="448" y2="430" stroke="#f85149" stroke-width="2" marker-end="url(#redArrow)" stroke-dasharray="6 4"/>
+  <line x1="300" y1="510" x2="448" y2="465" stroke="#f85149" stroke-width="2" marker-end="url(#redArrow)" stroke-dasharray="6 4"/>
+  <line x1="300" y1="590" x2="448" y2="500" stroke="#f85149" stroke-width="2" marker-end="url(#redArrow)" stroke-dasharray="6 4"/>
+  <line x1="300" y1="670" x2="448" y2="535" stroke="#f85149" stroke-width="2" marker-end="url(#redArrow)" stroke-dasharray="6 4"/>
+
+  <!-- ============================================================ -->
+  <!-- Stack: Application Layer (top) -->
+  <rect class="layer-app" x="450" y="180" width="1380" height="170" rx="14"/>
+  <text class="text-layer" x="490" y="220">Application Layer</text>
+  <text class="text-mid" x="490" y="248">your AI workload, unmodified</text>
+
+  <rect class="box" x="490" y="265" width="290" height="65" rx="8"/>
+  <text class="text-box" x="635" y="295" text-anchor="middle">Inference Server</text>
+  <text class="text-box-sub" x="635" y="318" text-anchor="middle">vLLM · llama.cpp · Triton</text>
+
+  <rect class="box" x="800" y="265" width="290" height="65" rx="8"/>
+  <text class="text-box" x="945" y="295" text-anchor="middle">API Gateway</text>
+  <text class="text-box-sub" x="945" y="318" text-anchor="middle">WAF · LLM proxy · auth</text>
+
+  <rect class="box" x="1110" y="265" width="290" height="65" rx="8"/>
+  <text class="text-box" x="1255" y="295" text-anchor="middle">Frameworks</text>
+  <text class="text-box-sub" x="1255" y="318" text-anchor="middle">PyTorch · TensorFlow · ONNX</text>
+
+  <rect class="box" x="1420" y="265" width="380" height="65" rx="8"/>
+  <text class="text-box" x="1610" y="295" text-anchor="middle">Observability</text>
+  <text class="text-box-sub" x="1610" y="318" text-anchor="middle">Prometheus · Grafana · alert webhooks</text>
+
+  <!-- separator -->
+  <text class="text-mid" x="1140" y="395" text-anchor="middle">↓ all model-asset access flows through here ↓</text>
+
+  <!-- NeuroSentry Layer (middle, accented) -->
+  <rect class="layer-ns" x="450" y="410" width="1380" height="240" rx="14"/>
+  <text class="text-layer" x="490" y="450" fill="#7fb069">NeuroSentry — kernel-level enforcement</text>
+  <text class="text-mid" x="490" y="478">eBPF programs attached to LSM, TC/XDP, and uprobe hooks · zero application changes</text>
+
+  <rect class="box-ns" x="490" y="500" width="310" height="125" rx="8"/>
+  <text class="text-box" x="645" y="528" text-anchor="middle" fill="#7fb069">LSM file_open</text>
+  <text class="text-box-sub" x="645" y="555" text-anchor="middle">.safetensors · .gguf · .pth</text>
+  <text class="text-box-sub" x="645" y="578" text-anchor="middle">.pt · .onnx · .h5</text>
+  <text class="text-box-sub" x="645" y="608" text-anchor="middle" fill="#7fb069">→ -EPERM at VFS</text>
+
+  <rect class="box-ns" x="820" y="500" width="310" height="125" rx="8"/>
+  <text class="text-box" x="975" y="528" text-anchor="middle" fill="#7fb069">TC ingress / egress</text>
+  <text class="text-box-sub" x="975" y="555" text-anchor="middle">cloud-compatible</text>
+  <text class="text-box-sub" x="975" y="578" text-anchor="middle">PID + dst + bytes per flow</text>
+  <text class="text-box-sub" x="975" y="608" text-anchor="middle" fill="#7fb069">→ visibility + alert</text>
+
+  <rect class="box-ns" x="1150" y="500" width="310" height="125" rx="8"/>
+  <text class="text-box" x="1305" y="528" text-anchor="middle" fill="#7fb069">XDP filter</text>
+  <text class="text-box-sub" x="1305" y="555" text-anchor="middle">bare metal · ~50 ns/pkt</text>
+  <text class="text-box-sub" x="1305" y="578" text-anchor="middle">driver-layer drop path</text>
+  <text class="text-box-sub" x="1305" y="608" text-anchor="middle" fill="#7fb069">→ XDP_DROP</text>
+
+  <rect class="box-ns" x="1480" y="500" width="320" height="125" rx="8"/>
+  <text class="text-box" x="1640" y="528" text-anchor="middle" fill="#7fb069">Uprobes</text>
+  <text class="text-box-sub" x="1640" y="555" text-anchor="middle">PyTorch · CPython pickle</text>
+  <text class="text-box-sub" x="1640" y="578" text-anchor="middle">os.system · subprocess · eval</text>
+  <text class="text-box-sub" x="1640" y="608" text-anchor="middle" fill="#7fb069">→ critical event</text>
+
+  <!-- separator -->
+  <text class="text-mid" x="1140" y="695" text-anchor="middle">↓ enforcement returns to the kernel; only allowed ops reach below ↓</text>
+
+  <!-- Linux Kernel (bottom) -->
+  <rect class="layer-kernel" x="450" y="710" width="1380" height="120" rx="14"/>
+  <text class="text-layer" x="490" y="750">Linux Kernel</text>
+  <text class="text-mid" x="490" y="778">VFS · network stack · process scheduler · /proc</text>
+  <text class="text-box" x="1140" y="808" text-anchor="middle" fill="#8b949e">files · sockets · syscalls · memory mappings</text>
+
+  <!-- Side note: data flow up to user-space agent -->
+  <rect class="box" x="450" y="870" width="1380" height="100" rx="10" stroke-dasharray="5 5"/>
+  <text class="text-box" x="490" y="905" fill="#58a6ff">Go user-space agent (sidecar)</text>
+  <text class="text-box-sub" x="490" y="932">Controller · Policy Engine · Event Processor (ring buffer reader) · Prometheus :2112</text>
+  <text class="text-box-sub" x="490" y="956">consumes events from the eBPF ring buffer; never on the syscall hot path</text>
+
+  <!-- Watermark -->
+  <text class="text-watermark" x="1860" y="1050" text-anchor="end">github.com/tonghuaroot/neurosentry  ·  Apache 2.0</text>
+</svg>

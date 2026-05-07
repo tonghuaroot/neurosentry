@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .title { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; fill: #7fb069; font-size: 52px; }
+      .subtitle { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 400; fill: #ffffff; font-size: 28px; }
+      .lane-label { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; font-size: 22px; fill: #8b949e; letter-spacing: 2px; }
+      .box-title { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 20px; fill: #ffffff; }
+      .box-sub { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #8b949e; }
+      .code { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 16px; fill: #ffffff; }
+      .deny { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 22px; fill: #f85149; }
+      .ok { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 18px; fill: #7fb069; }
+      .conn-label { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #58a6ff; }
+      .step-num { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 18px; fill: #7fb069; }
+      .watermark { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #30363d; }
+      .lane-bg { fill: #161b22; stroke: #30363d; stroke-width: 2; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff" />
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f85149" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7fb069" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1920" height="1080" />
+
+  <!-- Title -->
+  <text class="title" x="80" y="80">LSM file_open enforcement path</text>
+  <text class="subtitle" x="80" y="120">every open() of a protected extension by an untrusted PID returns -EPERM at the VFS layer</text>
+
+  <!-- Lane backgrounds -->
+  <rect class="lane-bg" x="60" y="180" width="370" height="700" rx="12" />
+  <text class="lane-label" x="80" y="215">ATTACKER PROCESS</text>
+
+  <rect class="lane-bg" x="450" y="180" width="630" height="700" rx="12" />
+  <text class="lane-label" x="470" y="215">LINUX KERNEL  ·  VFS  ·  LSM HOOK</text>
+
+  <rect class="lane-bg" x="1100" y="180" width="760" height="700" rx="12" />
+  <text class="lane-label" x="1120" y="215">BPF DECISION  ·  NeuroSentry</text>
+
+  <!-- ================ STEP 1: attacker process ================ -->
+  <rect x="80" y="250" width="330" height="120" rx="8" fill="#0d1117" stroke="#f85149" stroke-width="2.5" />
+  <text class="step-num" x="100" y="278" fill="#f85149">1</text>
+  <text class="box-title" x="130" y="278">attacker</text>
+  <text class="code" x="100" y="310">$ cp /target/llama-2-7b\</text>
+  <text class="code" x="100" y="333">    .safetensors /tmp/</text>
+  <text class="box-sub" x="100" y="358">PID 8421  ·  uid 0  ·  cap_dac_override</text>
+
+  <!-- arrow 1 -> 2 -->
+  <line x1="410" y1="310" x2="470" y2="310" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- ================ STEP 2: VFS open ================ -->
+  <rect x="470" y="250" width="600" height="120" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
+  <text class="step-num" x="490" y="278">2</text>
+  <text class="box-title" x="520" y="278">do_sys_openat2() → security_file_open()</text>
+  <text class="code" x="490" y="312">struct file *file  ·  full dentry path resolved</text>
+  <text class="box-sub" x="490" y="340">VFS calls every registered LSM hook in order;</text>
+  <text class="box-sub" x="490" y="358">BPF LSM is one of them — first deny wins.</text>
+
+  <!-- arrow 2 -> 3 -->
+  <line x1="1070" y1="310" x2="1120" y2="310" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- ================ STEP 3: BPF LSM hook entry ================ -->
+  <rect x="1120" y="250" width="720" height="120" rx="8" fill="#0d1117" stroke="#7fb069" stroke-width="3" />
+  <text class="step-num" x="1140" y="278">3</text>
+  <text class="box-title" x="1170" y="278">SEC("lsm/file_open")  ·  BPF program enters</text>
+  <text class="code" x="1140" y="312">int BPF_PROG(file_open_check, struct file *file)</text>
+  <text class="box-sub" x="1140" y="340">extract: pid · comm · d_name → filename extension</text>
+  <text class="box-sub" x="1140" y="358">consult three BPF maps (see inset below)</text>
+
+  <!-- arrow down to step 4 -->
+  <line x1="1480" y1="370" x2="1480" y2="410" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- ================ STEP 4: trusted pid check ================ -->
+  <rect x="1120" y="410" width="720" height="80" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2" />
+  <text class="step-num" x="1140" y="438">4</text>
+  <text class="box-title" x="1170" y="438">trusted_pids[pid] ?</text>
+  <text class="code" x="1140" y="470">bpf_map_lookup_elem(&amp;trusted_pids, &amp;pid)</text>
+  <text class="ok" x="1820" y="465" text-anchor="end">hit  →  ALLOW</text>
+
+  <line x1="1480" y1="490" x2="1480" y2="530" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+  <text class="conn-label" x="1495" y="515">miss</text>
+
+  <!-- ================ STEP 5: extension match ================ -->
+  <rect x="1120" y="530" width="720" height="80" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2" />
+  <text class="step-num" x="1140" y="558">5</text>
+  <text class="box-title" x="1170" y="558">protected_extensions[ext] ?</text>
+  <text class="code" x="1140" y="590">.safetensors  .gguf  .pth  .pt  .pb  .h5  .pkl  .bin</text>
+  <text class="ok" x="1820" y="585" text-anchor="end">miss → ALLOW</text>
+
+  <line x1="1480" y1="610" x2="1480" y2="650" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+  <text class="conn-label" x="1495" y="635">match</text>
+
+  <!-- ================ STEP 6: enforce mode ================ -->
+  <rect x="1120" y="650" width="720" height="80" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2" />
+  <text class="step-num" x="1140" y="678">6</text>
+  <text class="box-title" x="1170" y="678">config_map[0].enforce_mode ?</text>
+  <text class="code" x="1140" y="710">bpf_ringbuf_submit(events, file_blocked)</text>
+  <text class="ok" x="1820" y="705" text-anchor="end">false → audit</text>
+
+  <line x1="1480" y1="730" x2="1480" y2="770" stroke="#f85149" stroke-width="2" marker-end="url(#arrow-red)" />
+  <text class="conn-label" x="1495" y="755" fill="#f85149">true</text>
+
+  <!-- ================ STEP 7: return -EPERM ================ -->
+  <rect x="1120" y="770" width="720" height="90" rx="8" fill="#0d1117" stroke="#f85149" stroke-width="3.5" />
+  <text class="step-num" x="1140" y="800" fill="#f85149">7</text>
+  <text class="deny" x="1170" y="803">return -EPERM</text>
+  <text class="code" x="1140" y="835">ret = -1;  // BPF_LSM_RETURN deny</text>
+
+  <!-- ================ EPERM PROPAGATION (back arrows) ================ -->
+  <!-- step 8 in vfs lane -->
+  <rect x="470" y="430" width="600" height="100" rx="8" fill="#0d1117" stroke="#f85149" stroke-width="2.5" />
+  <text class="step-num" x="490" y="458" fill="#f85149">8</text>
+  <text class="box-title" x="520" y="458">VFS sees nonzero LSM return</text>
+  <text class="code" x="490" y="490">do_filp_open()  →  -EPERM</text>
+  <text class="box-sub" x="490" y="513">no fd is allocated, no data ever read from disk</text>
+
+  <!-- arrow from step 7 (right lane) UP-LEFT to step 8 -->
+  <path d="M 1120 815 L 1085 815 L 1085 480 L 1070 480" stroke="#f85149" stroke-width="2" fill="none" marker-end="url(#arrow-red)" />
+
+  <!-- step 9 in vfs lane -->
+  <rect x="470" y="560" width="600" height="100" rx="8" fill="#0d1117" stroke="#f85149" stroke-width="2.5" />
+  <text class="step-num" x="490" y="588" fill="#f85149">9</text>
+  <text class="box-title" x="520" y="588">syscall layer  ·  glibc errno = EPERM</text>
+  <text class="code" x="490" y="620">openat() = -1   errno = 1   "Operation not permitted"</text>
+  <text class="box-sub" x="490" y="643">unmodifiable from user space — kernel-side decision</text>
+
+  <line x1="770" y1="530" x2="770" y2="560" stroke="#f85149" stroke-width="2" marker-end="url(#arrow-red)" />
+
+  <!-- step 10 in attacker lane -->
+  <rect x="80" y="430" width="330" height="230" rx="8" fill="#0d1117" stroke="#f85149" stroke-width="3.5" />
+  <text class="step-num" x="100" y="458" fill="#f85149">10</text>
+  <text class="box-title" x="135" y="458">attacker output</text>
+  <text class="code" x="100" y="495" fill="#f85149">cp: cannot open</text>
+  <text class="code" x="100" y="518" fill="#f85149">  '/target/llama-2-7b\</text>
+  <text class="code" x="100" y="541" fill="#f85149">     .safetensors':</text>
+  <text class="code" x="100" y="564" fill="#f85149">  Operation not permitted</text>
+  <text class="box-sub" x="100" y="600">no bytes ever leave VFS</text>
+  <text class="box-sub" x="100" y="620">file is not in the page cache</text>
+  <text class="box-sub" x="100" y="640">audit event flushed via ringbuf</text>
+
+  <line x1="470" y1="610" x2="410" y2="610" stroke="#f85149" stroke-width="2" marker-end="url(#arrow-red)" />
+
+  <!-- ================ Inset: BPF maps consulted ================ -->
+  <rect x="80" y="700" width="330" height="180" rx="12" fill="#0d1117" stroke="#7fb069" stroke-width="2" />
+  <text class="lane-label" x="100" y="730" fill="#7fb069">BPF MAPS CONSULTED</text>
+  <text class="box-title" x="100" y="760">trusted_pids</text>
+  <text class="box-sub" x="100" y="780">HASH · pid → 1  · 10240 entries</text>
+  <text class="box-title" x="100" y="810">protected_extensions</text>
+  <text class="box-sub" x="100" y="830">HASH · str → 1  · 32 entries</text>
+  <text class="box-title" x="100" y="855">config_map</text>
+  <text class="box-sub" x="100" y="872">ARRAY · enforce_mode flag</text>
+
+  <!-- ================ Bottom note ================ -->
+  <rect x="450" y="700" width="630" height="180" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="2" />
+  <text class="lane-label" x="470" y="730">PROPERTIES</text>
+  <text class="box-sub" x="470" y="760" fill="#ffffff">·  no user-space process — including root — can intercept the deny</text>
+  <text class="box-sub" x="470" y="785" fill="#ffffff">·  decision happens before any read; no DMA, no page-cache pollution</text>
+  <text class="box-sub" x="470" y="810" fill="#ffffff">·  fail-closed for every glibc / Python / Go / Rust runtime alike</text>
+  <text class="box-sub" x="470" y="835" fill="#ffffff">·  CAP_BPF can mutate trusted_pids — that mutation is logged "SECURITY:"</text>
+  <text class="box-sub" x="470" y="860" fill="#ffffff">·  honest gap: extension-rename bypass — content-based check is roadmap</text>
+
+  <!-- Watermark -->
+  <text class="watermark" x="1840" y="1050" text-anchor="end">github.com/tonghuaroot/neurosentry</text>
+</svg>

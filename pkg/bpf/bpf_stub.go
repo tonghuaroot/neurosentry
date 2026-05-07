@@ -27,8 +27,8 @@ func (o *NeuroSentryTCObjects) Close()     {}
 
 // Manager manages eBPF programs lifecycle (stub for non-Linux)
 type Manager struct {
-	cfg     *config.Config
-	policy  *policy.Policy
+	cfg    *config.Config
+	policy *policy.Policy
 
 	// eBPF objects (unused stubs)
 	lsmObjs    *NeuroSentryLSMObjects
@@ -84,27 +84,27 @@ func (m *Manager) AttachUprobes() error {
 }
 
 // AddTrustedPID is a no-op on non-Linux platforms
-func (m *Manager) AddTrustedPID(pid uint32) error {
+func (m *Manager) AddTrustedPID(_ uint32) error {
 	return nil
 }
 
 // RemoveTrustedPID is a no-op on non-Linux platforms
-func (m *Manager) RemoveTrustedPID(pid uint32) error {
+func (m *Manager) RemoveTrustedPID(_ uint32) error {
 	return nil
 }
 
 // AddProtectedExtension is a no-op on non-Linux platforms
-func (m *Manager) AddProtectedExtension(ext string) error {
+func (m *Manager) AddProtectedExtension(_ string) error {
 	return nil
 }
 
 // AddAllowedIP is a no-op on non-Linux platforms
-func (m *Manager) AddAllowedIP(ipStr string) error {
+func (m *Manager) AddAllowedIP(_ string) error {
 	return nil
 }
 
 // AddDangerousSymbol is a no-op on non-Linux platforms
-func (m *Manager) AddDangerousSymbol(symbol string) error {
+func (m *Manager) AddDangerousSymbol(_ string) error {
 	return nil
 }
 

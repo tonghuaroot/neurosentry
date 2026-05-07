@@ -7,20 +7,39 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "=========================================="
-echo "NeuroSentry: Capture The Model Challenge"
-echo "Black Hat USA Arsenal 2026"
+echo "NeuroSentry: Capture The Model"
+echo "Hands-on lab challenge"
 echo "=========================================="
 echo ""
 
-# Check Docker
+# Check Docker (accept both v1 binary `docker-compose` and v2 plugin `docker compose`)
 if ! command -v docker &> /dev/null; then
     echo "Error: Docker is not installed"
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-    echo "Error: docker-compose is not installed"
+if command -v docker-compose &> /dev/null; then
+    DC="docker-compose"
+elif docker compose version &> /dev/null; then
+    DC="docker compose"
+else
+    echo "Error: neither 'docker-compose' (v1) nor the 'docker compose' (v2) plugin is available"
     exit 1
+fi
+
+# Verify BPF LSM is in the active LSM stack — without this the agent will
+# load but the LSM hook will silently fail to attach.
+if [ -r /sys/kernel/security/lsm ]; then
+    if ! grep -qw bpf /sys/kernel/security/lsm; then
+        echo "Error: 'bpf' is not in the active LSM stack."
+        echo "  current: $(cat /sys/kernel/security/lsm)"
+        echo "  fix: add 'lsm=lockdown,capability,landlock,yama,apparmor,bpf' to"
+        echo "       GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub.d/, run"
+        echo "       'sudo update-grub', then reboot."
+        exit 1
+    fi
+else
+    echo "Warning: /sys/kernel/security/lsm not readable; cannot verify BPF LSM is active."
 fi
 
 # Check if running as root (required for eBPF)
@@ -30,9 +49,12 @@ if [ "$EUID" -ne 0 ]; then
     echo ""
 fi
 
-# Create necessary directories
+# Create necessary directories. `model-data/` is the host-side bind path that
+# both the agent (read-only) and the scoring server mount as the protected
+# model store; see docker-compose.yml. Created here so the bind is non-empty
+# at compose-up time even if generation is skipped.
 echo "[+] Setting up directories..."
-mkdir -p workspace logs scoring/data config/grafana/dashboards config/grafana/datasources
+mkdir -p workspace logs scoring/data config/grafana/dashboards config/grafana/datasources model-data
 
 # Check if NeuroSentry image exists, if not build it
 if ! docker images neurosentry:ctf-latest -q | grep -q .; then
@@ -54,11 +76,26 @@ fi
 
 # Start the challenge
 echo "[+] Starting challenge environment..."
-docker-compose up -d
+$DC up -d
 
-# Wait for services to be ready
-echo "[+] Waiting for services to initialize..."
-sleep 5
+# Wait for services to be ready. Replaces a previous bare `sleep 5` which
+# raced container init under booth-cold-start conditions and left the first
+# visitor with connection-refused on :8080.
+echo "[+] Waiting for services to be healthy..."
+ready=0
+for i in $(seq 1 60); do
+    if curl -sfm 2 http://localhost:8080/health >/dev/null 2>&1 \
+       && curl -sfm 2 http://localhost:2112/health >/dev/null 2>&1; then
+        echo "[+] Scoring server (:8080) and agent metrics (:2112) are up."
+        ready=1
+        break
+    fi
+    sleep 1
+done
+if [ "$ready" != "1" ]; then
+    echo "[!] Services did not come up within 60s. Check 'docker logs scoring' and 'docker logs neurosentry'."
+    exit 1
+fi
 
 # Check status
 echo ""

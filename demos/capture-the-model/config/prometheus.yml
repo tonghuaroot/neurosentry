@@ -1,11 +1,11 @@
-# Prometheus configuration for NeuroSentry CTF Challenge
+# Prometheus configuration for the NeuroSentry "Capture The Model" lab
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
     challenge: 'capture-the-model'
-    conference: 'black-hat-arsenal-2026'
+    deployment: 'lab-environment'
 
 scrape_configs:
   # NeuroSentry metrics

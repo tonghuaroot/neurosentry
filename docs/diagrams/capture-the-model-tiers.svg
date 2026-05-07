@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .title { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; fill: #7fb069; font-size: 52px; }
+      .subtitle { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 400; fill: #ffffff; font-size: 28px; }
+      .tier-label { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; font-size: 26px; letter-spacing: 2px; }
+      .tier-sub { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-size: 18px; fill: #8b949e; }
+      .code { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 18px; fill: #ffffff; }
+      .code-sm { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 15px; fill: #ffffff; }
+      .deny { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 22px; fill: #f85149; }
+      .amber { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 17px; fill: #d29922; }
+      .ok { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 17px; fill: #7fb069; }
+      .red-tag { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 17px; fill: #f85149; }
+      .panel-label { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; font-size: 22px; fill: #8b949e; letter-spacing: 2px; }
+      .hat-name { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 19px; }
+      .hat-sub { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #8b949e; }
+      .watermark { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #30363d; }
+      .callout { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; font-size: 22px; fill: #58a6ff; }
+      .callout-sub { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 16px; fill: #ffffff; }
+    </style>
+    <marker id="arrow-up" viewBox="0 0 10 10" refX="5" refY="9" markerWidth="10" markerHeight="10" orient="auto">
+      <path d="M 0 9 L 5 0 L 10 9 z" fill="#8b949e" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1920" height="1080" />
+
+  <!-- Title -->
+  <text class="title" x="80" y="80">Capture The Model — Hands-on Lab Challenge</text>
+  <text class="subtitle" x="80" y="120">three tiers of attack, honest disclosure of the extension-rename gap</text>
+
+  <!-- Pyramid background guide arrow on left side (vertical, stops above the time-budget callout) -->
+  <line x1="120" y1="855" x2="120" y2="220" stroke="#8b949e" stroke-width="2" stroke-dasharray="4 4" marker-end="url(#arrow-up)" />
+  <text class="tier-sub" x="60" y="560" transform="rotate(-90 60 560)">attack difficulty  ·  privilege required</text>
+
+  <!-- ===================== TIER 3 (top, narrowest) ===================== -->
+  <polygon points="640,210 1100,210 1180,330 560,330" fill="#0d1117" stroke="#f85149" stroke-width="3" />
+  <text class="tier-label" x="870" y="248" text-anchor="middle" fill="#f85149">TIER 3  ·  PRIVILEGED</text>
+  <text class="tier-sub" x="870" y="275" text-anchor="middle">requires CAP_BPF / CAP_SYS_ADMIN</text>
+  <text class="code-sm" x="600" y="305">bpftool map update id $T key &lt;pid&gt; value 0x01</text>
+  <text class="code-sm" x="600" y="323">bpftool link detach id &lt;link_id&gt;   # LSM detach</text>
+
+  <!-- Tier 3 side tag -->
+  <rect x="1220" y="220" width="500" height="110" rx="10" fill="#0d1117" stroke="#f85149" stroke-width="2" />
+  <text class="red-tag" x="1240" y="252">all audit-logged with SECURITY: prefix</text>
+  <text class="code-sm" x="1240" y="280">SECURITY: trusted_pids mutation pid=8421</text>
+  <text class="code-sm" x="1240" y="302">SECURITY: lsm/file_open link_detach uid=0</text>
+  <text class="hat-sub" x="1240" y="322">in production this would page a SOC</text>
+
+  <!-- ===================== TIER 2 (middle) ===================== -->
+  <polygon points="500,360 1240,360 1320,560 420,560" fill="#0d1117" stroke="#d29922" stroke-width="3" />
+  <text class="tier-label" x="870" y="398" text-anchor="middle" fill="#d29922">TIER 2  ·  EVASION</text>
+  <text class="tier-sub" x="870" y="425" text-anchor="middle">tricks against the LSM matcher</text>
+
+  <!-- Tier 2 row 1: extension rename (the honest gap) -->
+  <text class="code" x="475" y="463">cp /target/...safetensors /tmp/x.bin.bak</text>
+  <text class="amber" x="1030" y="463">✓  bypass (ext gap)</text>
+
+  <!-- row 2 symlink -->
+  <text class="code" x="475" y="492">ln -s /target/...safetensors /tmp/x.txt &amp;&amp; cat</text>
+  <text class="ok" x="1100" y="492">✗  blocked</text>
+
+  <!-- row 3 /proc/pid/mem -->
+  <text class="code" x="475" y="521">cat /proc/&lt;pid&gt;/mem  ·  mmap scrape</text>
+  <text class="ok" x="1100" y="521">✗  blocked</text>
+
+  <!-- row 4 kill agent -->
+  <text class="code" x="475" y="550">pkill neurosentry  ·  docker rm -f</text>
+  <text class="ok" x="1100" y="550">✗  auto-restart</text>
+
+  <!-- Tier 2 amber callout -->
+  <rect x="1360" y="380" width="500" height="180" rx="10" fill="#0d1117" stroke="#d29922" stroke-width="2" />
+  <text class="amber" x="1380" y="412">EDUCATIONAL GAP</text>
+  <text class="hat-sub" x="1380" y="438" fill="#ffffff">extension-only matching is the honest</text>
+  <text class="hat-sub" x="1380" y="458" fill="#ffffff">limit of the demo's LSM hook.</text>
+  <text class="hat-sub" x="1380" y="488" fill="#ffffff">production fix:</text>
+  <text class="code-sm" x="1380" y="510">·  magic-byte check on header</text>
+  <text class="code-sm" x="1380" y="530">·  inode tagging</text>
+  <text class="code-sm" x="1380" y="550">·  content classifier in user space</text>
+
+  <!-- ===================== TIER 1 (bottom, widest) ===================== -->
+  <polygon points="360,590 1380,590 1460,820 280,820" fill="#0d1117" stroke="#7fb069" stroke-width="3" />
+  <text class="tier-label" x="870" y="628" text-anchor="middle" fill="#7fb069">TIER 1  ·  NAIVE</text>
+  <text class="tier-sub" x="870" y="655" text-anchor="middle">obvious reads — every one returns -EPERM</text>
+
+  <!-- Tier 1 commands two-column layout -->
+  <text class="code" x="350" y="700">cp  /target/llama-2-7b.safetensors /tmp/</text>
+  <text class="code" x="350" y="730">cat /target/llama-2-7b.safetensors &gt; /tmp/out</text>
+  <text class="code" x="350" y="760">dd  if=/target/llama-2-7b.safetensors of=...</text>
+  <text class="code" x="350" y="790">python3 -c "open('/target/...','rb').read()"</text>
+
+  <!-- Tier 1 result tag -->
+  <rect x="1090" y="700" width="320" height="110" rx="10" fill="#0d1117" stroke="#f85149" stroke-width="3" />
+  <text class="deny" x="1250" y="740" text-anchor="middle">all -EPERM</text>
+  <text class="hat-sub" x="1250" y="770" text-anchor="middle" fill="#ffffff">VFS denies before fd alloc</text>
+  <text class="hat-sub" x="1250" y="790" text-anchor="middle" fill="#ffffff">no opportunity to retry</text>
+
+  <!-- ===================== SCORING SIDE PANEL (right) ===================== -->
+  <rect x="1500" y="600" width="380" height="380" rx="12" fill="#0d1117" stroke="#7fb069" stroke-width="2" />
+  <text class="panel-label" x="1520" y="632">SCORING  ·  FOUR HATS</text>
+
+  <!-- Black Hat -->
+  <rect x="1520" y="660" width="340" height="64" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5" />
+  <circle cx="1545" cy="692" r="14" fill="#000000" stroke="#ffffff" stroke-width="2" />
+  <text class="hat-name" x="1570" y="685" fill="#ffffff">Black Hat</text>
+  <text class="hat-sub" x="1570" y="708">MD5 match — exfiltration succeeded</text>
+
+  <!-- White Hat -->
+  <rect x="1520" y="734" width="340" height="64" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5" />
+  <circle cx="1545" cy="766" r="14" fill="#ffffff" stroke="#8b949e" stroke-width="2" />
+  <text class="hat-name" x="1570" y="759" fill="#ffffff">White Hat</text>
+  <text class="hat-sub" x="1570" y="782">10+ honest /submit attempts</text>
+
+  <!-- Grey Hat -->
+  <rect x="1520" y="808" width="340" height="64" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5" />
+  <circle cx="1545" cy="840" r="14" fill="#8b949e" stroke="#ffffff" stroke-width="2" />
+  <text class="hat-name" x="1570" y="833" fill="#ffffff">Grey Hat</text>
+  <text class="hat-sub" x="1570" y="856">novel bypass not in known list</text>
+
+  <!-- Red Hat (two-line subtitle: maintainer is not a CNA, can only credit researchers) -->
+  <rect x="1520" y="882" width="340" height="84" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="1.5" />
+  <circle cx="1545" cy="924" r="14" fill="#f85149" stroke="#ffffff" stroke-width="2" />
+  <text class="hat-name" x="1570" y="907" fill="#ffffff">Red Hat</text>
+  <text class="hat-sub" x="1570" y="930">real security bug in NeuroSentry —</text>
+  <text class="hat-sub" x="1570" y="950">credit in SECURITY.md</text>
+
+  <!-- ===================== TIME BUDGET CALLOUT (bottom-left) ===================== -->
+  <rect x="120" y="870" width="900" height="120" rx="12" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
+  <text class="callout" x="150" y="908">15 min  ·  13 GB sparse model  ·  live scoreboard</text>
+  <text class="callout-sub" x="150" y="940">/target/llama-2-7b.safetensors  →  /tmp/stolen/  ·  MD5 verified by scoring server</text>
+  <text class="callout-sub" x="150" y="965">submit each attempt to localhost:8080/submit  ·  Grafana panel on :3000</text>
+
+  <!-- Watermark -->
+  <text class="watermark" x="1840" y="1050" text-anchor="end">github.com/tonghuaroot/neurosentry</text>
+</svg>

@@ -55,9 +55,45 @@ typedef unsigned long long __u64;
 #define EVENT_FILE_ACCESS 1
 #define EVENT_FILE_BLOCKED 2
 
-// Section attribute and BPF_PROG macro
+// Section attribute
 #define SEC(NAME) __attribute__((section(NAME), used))
-#define BPF_PROG(name, args...) name(args)
+
+// Correct BPF_PROG variants: BPF programs receive their arguments in a ctx[]
+// array (passed as r1), not as direct C arguments. The previous one-line
+// `name(args)` macro silently passed the ctx pointer itself as the first arg,
+// which made every &file->... probe_read read from random kernel memory and
+// fail with EFAULT. These variants pull each declared arg out of ctx[i] and
+// forward to the inline implementation. _NARGS dispatches to the right
+// arity macro so 1-, 2-, and 3-arg LSM hooks all work.
+#define BPF_PROG_PICK(_1, _2, _3, NAME, ...) NAME
+#define BPF_PROG(name, ...) BPF_PROG_PICK(__VA_ARGS__, BPF_PROG3, BPF_PROG2, BPF_PROG1)(name, __VA_ARGS__)
+
+#define BPF_PROG1(name, a1)                                               \
+    name(unsigned long long *ctx);                                        \
+    static __always_inline int ____##name(a1);                            \
+    int name(unsigned long long *ctx) {                                   \
+        return ____##name((void *)(unsigned long)ctx[0]);                 \
+    }                                                                     \
+    static __always_inline int ____##name(a1)
+
+#define BPF_PROG2(name, a1, a2)                                           \
+    name(unsigned long long *ctx);                                        \
+    static __always_inline int ____##name(a1, a2);                        \
+    int name(unsigned long long *ctx) {                                   \
+        return ____##name((void *)(unsigned long)ctx[0],                  \
+                          (unsigned long)ctx[1]);                         \
+    }                                                                     \
+    static __always_inline int ____##name(a1, a2)
+
+#define BPF_PROG3(name, a1, a2, a3)                                       \
+    name(unsigned long long *ctx);                                        \
+    static __always_inline int ____##name(a1, a2, a3);                    \
+    int name(unsigned long long *ctx) {                                   \
+        return ____##name((void *)(unsigned long)ctx[0],                  \
+                          (unsigned long)ctx[1],                          \
+                          (unsigned long)ctx[2]);                         \
+    }                                                                     \
+    static __always_inline int ____##name(a1, a2, a3)
 
 // BPF helper function declarations
 // Correct function IDs from /usr/include/bpf/bpf_helper_defs.h
@@ -107,11 +143,15 @@ struct {
     __type(value, unsigned char);
 } trusted_pids SEC(".maps");
 
-// Protected extensions map
+// Protected extensions map. Key: 16-byte zero-padded extension string,
+// always starting with `.` (e.g. ".safetensors\0\0\0\0"). Value: unused
+// (presence = protected). The hook looks up the file's actual extension
+// against this map, so adding/removing extensions in YAML now actually
+// changes what the kernel blocks.
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 32);
-    __type(key, unsigned int);
+    __type(key, char[16]);
     __type(value, unsigned char);
 } protected_extensions SEC(".maps");
 
@@ -153,9 +193,49 @@ struct {
 // LSM Hook Implementation
 // ============================================================================
 
-// Helper function to check if filename ends with a protected extension
-// Returns 1 if protected, 0 if not
+// Helper function to check if filename ends with a protected extension.
+// Returns 1 if the file's extension is in the protected_extensions BPF map,
+// 0 otherwise. The map is populated by the user-space agent from YAML,
+// so the set of blocked extensions is data-driven and editable at runtime
+// (via SIGHUP) without rebuilding the BPF object.
 static __always_inline int is_protected_file(const char *filename, int len)
+{
+    // Need at least ".X" (2 chars) for any extension to make sense
+    if (len < 2) return 0;
+
+    // Find the LAST '.' in the bounded filename window (bounded forward scan
+    // — the verifier requires a constant upper bound, can't loop backward
+    // from a variable index).
+    int last_dot = -1;
+    // Bounded loop, no #pragma unroll — verifier handles it natively
+    // since kernel 5.3+ and unrolling 256 iterations explodes the program
+    // size past the 1M-insn verifier limit.
+    for (int i = 0; i < 256; i++) {
+        if (i >= len) break;
+        if (filename[i] == '.') last_dot = i;
+    }
+    if (last_dot < 0) return 0;  // no '.' anywhere => no extension
+
+    // Length of the extension (including the dot itself)
+    int ext_len = len - last_dot;
+    if (ext_len > 15) return 0;  // 15-char extension cap (16-byte key incl. NUL)
+
+    // Copy the extension into a 16-byte zero-padded fixed buffer for the
+    // hash map lookup. Keys in protected_extensions are exactly 16 bytes.
+    char ext_key[16];
+    __builtin_memset(ext_key, 0, sizeof(ext_key));
+    #pragma unroll
+    for (int i = 0; i < 15; i++) {
+        if (i >= ext_len) break;
+        ext_key[i] = filename[last_dot + i];
+    }
+
+    unsigned char *hit = bpf_map_lookup_elem(&protected_extensions, ext_key);
+    return (hit && *hit) ? 1 : 0;
+}
+
+// Legacy hard-coded matcher kept for reference / fallback. Not called.
+static __always_inline int is_protected_file_legacy(const char *filename, int len)
 {
     // Check minimum length for extension matching
     if (len < 4) return 0;
@@ -231,12 +311,20 @@ static __always_inline int is_protected_file(const char *filename, int len)
     return 0;
 }
 
-// Helper function to get string length (bounded)
+// Helper function to get string length (bounded).
+// Bumped from 64 to 256 in v1.1: a 64-byte cap meant any leaf filename
+// longer than 63 bytes had its extension truncated off the buffer, so the
+// extension matcher silently missed and the hook returned 0 (allow). 256
+// covers ~all real model filenames; truly long names beyond 256 chars
+// remain a documented limit and require the d_name.len-based scheme on
+// the v1.2 punch list.
 static __always_inline int bounded_strlen(const char *s, int max)
 {
     int len = 0;
-    #pragma unroll
-    for (int i = 0; i < 64; i++) {  // Max 64 chars for extension checking
+    // Bounded loop, no #pragma unroll — verifier handles it natively
+    // since kernel 5.3+ and unrolling 256 iterations explodes the program
+    // size past the 1M-insn verifier limit.
+    for (int i = 0; i < 256; i++) {
         if (i >= max) break;
         if (s[i] == '\0') break;
         len++;
@@ -270,7 +358,7 @@ static __always_inline void send_event_with_filename(unsigned int event_type, co
         if (copy_len > MAX_PATH_LEN - 1)
             copy_len = MAX_PATH_LEN - 1;
         #pragma unroll
-        for (int i = 0; i < 64; i++) {  // Unroll limit for verifier
+        for (int i = 0; i < 256; i++) {  // matches MAX_PATH_LEN
             if (i >= copy_len) break;
             e->filename[i] = filename[i];
         }
@@ -301,69 +389,99 @@ static __always_inline void update_stats(unsigned char blocked)
     }
 }
 
-// LSM hook for file_open - Intercepts file open operations
+// LSM hook for file_open — intercepts file open operations.
+//
+// Design notes (rev 2):
+//   * Use the kernel-provided d_name.len rather than scanning for NUL,
+//     so the matcher works on filenames of arbitrary length.
+//   * Match the file's extension against the data-driven
+//     protected_extensions BPF map (16-byte zero-padded keys, populated
+//     by the user-space agent from YAML).
+//   * Read only the LAST 16 bytes of the filename for matching — that's
+//     where the extension lives, and limiting the match window to 16
+//     bytes keeps the verifier's program-instruction count well under
+//     the 1M cap. Earlier rev tried 256-byte loops and the verifier
+//     rejected with "BPF program is too large".
+//   * Read up to 64 bytes of the filename for the audit event payload
+//     (truncated for forensics; full path reconstruction is the agent's
+//     job via PID + comm + cwd).
 SEC("lsm/file_open")
 int BPF_PROG(restrict_model_file_access, struct file *file)
 {
     unsigned int pid = bpf_get_current_pid_tgid() >> 32;
 
-    // Check if PID is trusted - trusted processes always allowed
+    // Trusted PID? Allow.
     unsigned char *trusted = bpf_map_lookup_elem(&trusted_pids, &pid);
     if (trusted && *trusted) {
-        return 0;  // Allow trusted processes
+        return 0;
     }
 
-    // Extract filename from file->f_path.dentry->d_name.name
-    // Using CO-RE style access
+    // Walk file -> f_path.dentry -> d_name to get the filename pointer + length.
+    struct dentry *dentry = NULL;
+    bpf_probe_read_kernel(&dentry, sizeof(dentry), &file->f_path.dentry);
+    if (!dentry) return 0;
+
+    struct qstr d_name;
+    bpf_probe_read_kernel(&d_name, sizeof(d_name), &dentry->d_name);
+    if (!d_name.name || d_name.len < 2) return 0;
+
+    // Cap real_len so the verifier can reason about derived offsets.
+    unsigned int real_len = d_name.len;
+    if (real_len > 4096) real_len = 4096;
+
+    // ----- Tail read for extension matching: always read exactly 16 bytes -----
+    // For names shorter than 16, this reads a few bytes of adjacent kernel
+    // memory (still mapped — qstr->name points into a kmalloc'd buffer with
+    // the ext4/tmpfs/etc dentry name; even if we read past the trailing NUL
+    // we stay on the same page). For names >= 16 we read the LAST 16 bytes.
+    // Constant-size reads keep the verifier happy.
+    char tail[16];
+    __builtin_memset(tail, 0, sizeof(tail));
+    unsigned int tail_off = (real_len >= 16) ? (real_len - 16) : 0;
+    bpf_probe_read_kernel(tail, 16, (const char *)d_name.name + tail_off);
+
+    // For very short names, only the leading `real_len` bytes of `tail` are
+    // actually filename data — the rest is undefined. Compute the boundary.
+    unsigned int valid_in_tail = (real_len >= 16) ? 16 : real_len;
+
+    // Find last '.' inside the valid portion of tail.
+    int last_dot = -1;
+    for (int i = 0; i < 16; i++) {
+        if ((unsigned int)i >= valid_in_tail) break;
+        if (tail[i] == '.') last_dot = i;
+    }
+    if (last_dot < 0) return 0;  // no extension in the last 16 bytes
+
+    // Build the 16-byte zero-padded extension key. last_dot in [0,15];
+    // src_idx capped at <16 so tail[src_idx] is in-bounds.
+    char ext_key[16];
+    __builtin_memset(ext_key, 0, sizeof(ext_key));
+    for (int i = 0; i < 16; i++) {
+        unsigned int src_idx = (unsigned int)(last_dot + i);
+        if (src_idx >= 16) break;
+        if (src_idx >= valid_in_tail) break;
+        ext_key[i] = tail[src_idx];
+    }
+
+    unsigned char *hit = bpf_map_lookup_elem(&protected_extensions, ext_key);
+    if (!hit || !*hit) return 0;  // extension not in protected map => allow
+
+    // ----- Match. Read a small filename buffer for the event payload. -----
     char filename[64];
     __builtin_memset(filename, 0, sizeof(filename));
+    bpf_probe_read_kernel(filename, 64, d_name.name);
 
-    // Access the dentry from file path
-    struct dentry *dentry = NULL;
-    struct qstr d_name;
-    const unsigned char *name_ptr = NULL;
-
-    // Read dentry pointer from file->f_path.dentry
-    bpf_probe_read_kernel(&dentry, sizeof(dentry), &file->f_path.dentry);
-    if (!dentry) {
-        // Can't read dentry, allow access
-        return 0;
-    }
-
-    // Read d_name from dentry
-    bpf_probe_read_kernel(&d_name, sizeof(d_name), &dentry->d_name);
-
-    // Read the name pointer
-    bpf_probe_read_kernel(&name_ptr, sizeof(name_ptr), &d_name.name);
-
-    // Read the actual filename string
-    if (name_ptr) {
-        bpf_probe_read_kernel_str(filename, sizeof(filename), name_ptr);
-    }
-
-    // Check if this is a protected file type
-    int fname_len = bounded_strlen(filename, sizeof(filename));
-    if (fname_len == 0 || !is_protected_file(filename, fname_len)) {
-        // Not a protected file type, allow access
-        return 0;
-    }
-
-    // This is a protected model file being accessed by untrusted process
-    // Check config for enforce mode
+    // Enforce or audit?
     unsigned int cfg_key = 0;
     struct config *cfg = bpf_map_lookup_elem(&config_map, &cfg_key);
 
-    // Send event for blocked access with filename
-    send_event_with_filename(EVENT_FILE_BLOCKED, filename, fname_len);
+    send_event_with_filename(EVENT_FILE_BLOCKED, filename, 64);
     update_stats(1);
 
-    // If enforce mode is enabled, block the access
     if (cfg && cfg->enforce_mode) {
-        return -EPERM;  // Permission denied
+        return -EPERM;
     }
-
-    // Audit mode - log but allow
-    return 0;
+    return 0;  // audit-only mode
 }
 
 // LSM hook for file_permission - Monitors read operations on open files

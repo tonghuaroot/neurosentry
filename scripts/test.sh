@@ -55,8 +55,9 @@ if [ "$1" == "--lint" ]; then
     if command -v golangci-lint &> /dev/null; then
         golangci-lint run ./...
     else
-        log_warn "golangci-lint not found. Install with:"
-        log_warn "  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b \$(go env GOPATH)/bin"
+        log_warn "golangci-lint not found. Install via distro package or:"
+        log_warn "  go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"
+        log_warn "Pre-built binaries: https://github.com/golangci/golangci-lint/releases"
     fi
 
     if command -v gofmt &> /dev/null; then

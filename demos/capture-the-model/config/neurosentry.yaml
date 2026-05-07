@@ -1,17 +1,19 @@
-# NeuroSentry Configuration for Capture The Model Challenge
-# Black Hat USA Arsenal 2026
+# NeuroSentry Configuration for the Capture The Model lab challenge
 
 protection:
   # Model File Integrity Monitoring
   model_fim:
     enabled: true
+    # Extensions enforced by the LSM file_open hook (pkg/bpf/neurosentry_lsm.c
+    # is_protected_file). .pkl is covered by pickle_protection uprobes below;
+    # .bin is intentionally omitted to avoid false positives on common bin files.
     protected_extensions:
       - .safetensors
       - .gguf
       - .pth
       - .pt
-      - .pkl
-      - .bin
+      - .onnx
+      - .h5
     protected_paths:
       - /models
       - /target
@@ -28,20 +30,30 @@ protection:
       - 127.0.0.0/8      # Localhost (scoring server, metrics)
       - 10.0.0.0/8       # Docker internal
       - 172.16.0.0/12    # Docker internal
-    block_exfiltration: true
+    # block_exfiltration is monitor-only in v1.0 — TC programs log every
+    # egress flow above the threshold but do not drop. Drop-path is
+    # roadmap (XDP_DROP variant + LPM-trie blocked_ips). Set this to
+    # `true` to opt in to the v1.1 enforcement when it ships.
+    block_exfiltration: false
     exfil_threshold_mb: 50
     allow_dns: false
 
   # Pickle Protection
+  #
+  # IMPORTANT — v1.0 status: the pickle uprobe currently emits an event on a
+  # stack-depth heuristic, NOT on per-symbol matching. The dangerous_symbols
+  # list below is populated into a BPF hash map by user-space but is not yet
+  # consulted from the BPF program; treat it as informational. Symbol-aware
+  # blocking is on the v1.1 list — see CHANGELOG "Known limitations".
   pickle_protection:
     enabled: true
-    dangerous_symbols:
+    dangerous_symbols:  # informational in v1.0 (see comment above)
       - "os.system"
       - "eval"
       - "exec"
       - "__import__"
       - "subprocess"
-    block_on_detect: true
+    block_on_detect: false  # observe-only in v1.0
 
   # PyTorch Observability
   pytorch_observability:

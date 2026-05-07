@@ -19,9 +19,9 @@ type BPFMetricsCollector struct {
 	bpfMgr *bpf.Manager
 
 	// LSM Stats
-	lsmAccessAttempts   prometheus.Gauge
-	lsmBlockedAccess    prometheus.Gauge
-	lsmProtectedFiles   prometheus.Gauge
+	lsmAccessAttempts prometheus.Gauge
+	lsmBlockedAccess  prometheus.Gauge
+	lsmProtectedFiles prometheus.Gauge
 
 	// XDP Stats
 	xdpTotalPackets   prometheus.Gauge

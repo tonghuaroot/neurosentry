@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-NeuroSentry Capture The Model - Scoring Server
-Black Hat USA Arsenal 2026
+NeuroSentry Capture The Model — Scoring Server
 
-Tracks participant attempts and verifies successful exfiltration.
+Tracks participant attempts and verifies successful exfiltration during the
+hands-on lab challenge.
 """
 
 import hashlib
@@ -199,7 +199,7 @@ def index():
     """Scoring server homepage."""
     return jsonify({
         "challenge": "Capture The Model",
-        "conference": "Black Hat USA Arsenal 2026",
+        "format": "hands-on lab",
         "status": "running",
         "endpoints": {
             "/status": "Get current challenge status",

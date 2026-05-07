@@ -36,19 +36,19 @@ type Event struct {
 
 // EventSource identifies where the event originated
 type EventSource struct {
-	PID     int    `json:"pid"`
-	UID     int    `json:"uid"`
-	Comm    string `json:"comm"`
-	CGroup  string `json:"cgroup,omitempty"`
+	PID         int    `json:"pid"`
+	UID         int    `json:"uid"`
+	Comm        string `json:"comm"`
+	CGroup      string `json:"cgroup,omitempty"`
 	ContainerID string `json:"container_id,omitempty"`
 }
 
 // EventData contains event-specific data
 type EventData struct {
 	// File access events
-	FilePath    string `json:"file_path,omitempty"`
-	FileAction  string `json:"file_action,omitempty"`
-	Extension   string `json:"extension,omitempty"`
+	FilePath   string `json:"file_path,omitempty"`
+	FileAction string `json:"file_action,omitempty"`
+	Extension  string `json:"extension,omitempty"`
 
 	// Network events
 	SrcAddr     string `json:"src_addr,omitempty"`
@@ -59,16 +59,25 @@ type EventData struct {
 	BlockReason string `json:"block_reason,omitempty"`
 
 	// Model load events
-	Framework   string `json:"framework,omitempty"`
-	ModelSize   int64  `json:"model_size,omitempty"`
-	ModelHash   string `json:"model_hash,omitempty"`
+	Framework string `json:"framework,omitempty"`
+	ModelSize int64  `json:"model_size,omitempty"`
+	ModelHash string `json:"model_hash,omitempty"`
 
 	// Pickle events
-	StackDepth  int    `json:"stack_depth,omitempty"`
-	Symbols     []string `json:"symbols,omitempty"`
+	StackDepth int      `json:"stack_depth,omitempty"`
+	Symbols    []string `json:"symbols,omitempty"`
 }
 
-// ModelAccessEvent represents a model file access event from BPF
+// ModelAccessEvent represents a model file access event from BPF.
+// Layout MUST match the C struct in pkg/bpf/neurosentry_lsm.c:
+//
+//	uint pid; uint uid; ull timestamp; uint event_type; char comm[16]; char filename[256];
+//
+// Total 292 bytes. CGroup field was previously declared here but the C
+// struct doesn't carry one — removed to align with the actual ringbuf
+// payload (the cgroup-extraction story is at the user-space level via
+// pkg/policy/advanced.go::ExtractContainerID and is not yet wired into
+// the event pipeline).
 type ModelAccessEvent struct {
 	PID       uint32
 	UID       uint32
@@ -76,7 +85,6 @@ type ModelAccessEvent struct {
 	EventType uint32
 	Comm      [16]byte
 	Filename  [256]byte
-	CGroup    [64]byte
 }
 
 // NetworkEvent represents a network event from BPF
@@ -105,28 +113,41 @@ type ModelLoadEvent struct {
 
 // PickleEvent represents a pickle deserialization event
 type PickleEvent struct {
-	PID       uint32
-	Timestamp uint64
+	PID        uint32
+	Timestamp  uint64
 	PicklePath [256]byte
-	Comm      [16]byte
-	Dangerous uint8
+	Comm       [16]byte
+	Dangerous  uint8
 	StackTrace [256]byte
 }
 
-// ParseEvent parses a raw ringbuf record into an Event
+// ParseEvent parses a raw ringbuf record into an Event.
+//
+// The BPF `model_access_event` struct (see pkg/bpf/neurosentry_lsm.c) lays
+// out as:
+//
+//	uint32 pid          (offset  0)
+//	uint32 uid          (offset  4)
+//	uint64 timestamp    (offset  8)
+//	uint32 event_type   (offset 16)
+//	char   comm[16]     (offset 20)
+//	char   filename[256] (offset 36)
+//
+// Total: 292 bytes. event_type lives at offset 16, NOT at offset 0 — earlier
+// rev of this function read offset 0 and got PID values, then rejected
+// every record as "unknown event type: <pid>" so the alert path was dead.
 func ParseEvent(record ringbuf.Record) (Event, error) {
-	if len(record.RawSample) < 4 {
-		return Event{}, fmt.Errorf("record too short")
+	const eventTypeOffset = 16
+	if len(record.RawSample) < eventTypeOffset+4 {
+		return Event{}, fmt.Errorf("record too short (%d bytes)", len(record.RawSample))
 	}
 
-	// The first 4 bytes should indicate event type
-	// In a real implementation, we'd have a proper header
-	eventType := binary.LittleEndian.Uint32(record.RawSample[:4])
+	eventType := binary.LittleEndian.Uint32(record.RawSample[eventTypeOffset : eventTypeOffset+4])
 
 	switch eventType {
-	case 1, 2: // Model access events
+	case 1, 2: // EVENT_FILE_ACCESS / EVENT_FILE_BLOCKED
 		return parseModelAccessEvent(record.RawSample)
-	case 3, 4: // Network events
+	case 3, 4: // Network events (TC ringbuf — different struct, parsed elsewhere when wired)
 		return parseNetworkEvent(record.RawSample)
 	case 5: // Model load event
 		return parseModelLoadEvent(record.RawSample)
@@ -147,10 +168,9 @@ func parseModelAccessEvent(data []byte) (Event, error) {
 	event := Event{
 		Timestamp: time.Unix(0, int64(bpfEvent.Timestamp)), //nolint:gosec // G115: timestamp conversion is safe
 		Source: EventSource{
-			PID:    int(bpfEvent.PID),
-			UID:    int(bpfEvent.UID),
-			Comm:   cGoString(bpfEvent.Comm[:]),
-			CGroup: cGoString(bpfEvent.CGroup[:]),
+			PID:  int(bpfEvent.PID),
+			UID:  int(bpfEvent.UID),
+			Comm: cGoString(bpfEvent.Comm[:]),
 		},
 		Data: EventData{
 			FilePath: cGoString(bpfEvent.Filename[:]),
@@ -183,10 +203,10 @@ func parseNetworkEvent(data []byte) (Event, error) {
 			PID: int(bpfEvent.PID),
 		},
 		Data: EventData{
-			SrcAddr: uint32ToIP(bpfEvent.SAddr),
-			DstAddr: uint32ToIP(bpfEvent.DAddr),
-			SrcPort: int(bpfEvent.Sport),
-			DstPort: int(bpfEvent.Dport),
+			SrcAddr:  uint32ToIP(bpfEvent.SAddr),
+			DstAddr:  uint32ToIP(bpfEvent.DAddr),
+			SrcPort:  int(bpfEvent.Sport),
+			DstPort:  int(bpfEvent.Dport),
 			Protocol: protocolToString(bpfEvent.Protocol),
 		},
 	}

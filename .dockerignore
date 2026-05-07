@@ -1,0 +1,28 @@
+# Don't copy these into the Docker build context
+.git
+.github
+.idea
+.vscode
+node_modules
+
+# Generated artifacts
+bin/
+build/
+*.log
+
+# Demo-time test data (model-data is a 13GB sparse file that bloats the build)
+demos/capture-the-model/scoring/model-data/
+demos/capture-the-model/model-data/
+demos/record/audio/
+demos/record/audio_aria/
+demos/record/audio_aria_m4a/
+demos/record/casts/
+demos/record/models/
+demos/record/output/
+demos/record/output_aria/
+demos/record/voices/
+demos/record/png/
+docs/diagrams/png/
+
+# macOS
+.DS_Store

@@ -17,9 +17,9 @@ var (
 // SecurityMetrics contains security-specific metrics
 type SecurityMetrics struct {
 	// Model access metrics
-	modelAccessTotal      *prometheus.CounterVec
-	modelAccessBlocked    *prometheus.CounterVec
-	modelAccessByExt      *prometheus.CounterVec
+	modelAccessTotal   *prometheus.CounterVec
+	modelAccessBlocked *prometheus.CounterVec
+	modelAccessByExt   *prometheus.CounterVec
 
 	// Network metrics
 	networkBlocked       *prometheus.CounterVec
@@ -35,14 +35,24 @@ type SecurityMetrics struct {
 	pickleDangerousDetected *prometheus.CounterVec
 
 	// Operational metrics
-	errorsTotal       *prometheus.CounterVec
-	webhookSentTotal  *prometheus.CounterVec
-	policyReloads     prometheus.Counter
-	configReloads     prometheus.Counter
-	uptime            prometheus.Gauge
-	lastEventTime     prometheus.Gauge
+	errorsTotal      *prometheus.CounterVec
+	webhookSentTotal *prometheus.CounterVec
+	policyReloads    prometheus.Counter
+	configReloads    prometheus.Counter
+	uptime           prometheus.Gauge
+	lastEventTime    prometheus.Gauge
+	pidsPrunedTotal  prometheus.Counter
 
 	mu sync.RWMutex
+}
+
+// RecordPIDsPruned bumps the counter for trusted PIDs removed by the
+// periodic pruner (PID-recycle defence). Safe to call from any goroutine.
+func (m *SecurityMetrics) RecordPIDsPruned(n int) {
+	if m == nil || m.pidsPrunedTotal == nil || n <= 0 {
+		return
+	}
+	m.pidsPrunedTotal.Add(float64(n))
 }
 
 // NewSecurityMetrics creates security-specific metrics
@@ -156,6 +166,12 @@ func NewSecurityMetrics() *SecurityMetrics {
 				Help: "Timestamp of the last processed event",
 			},
 		),
+		pidsPrunedTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "neurosentry_trusted_pids_pruned_total",
+				Help: "Number of trusted PIDs removed by the periodic PID-death watcher",
+			},
+		),
 	}
 
 	// Register metrics (only once globally)
@@ -178,6 +194,7 @@ func NewSecurityMetrics() *SecurityMetrics {
 		prometheus.MustRegister(m.configReloads)
 		prometheus.MustRegister(m.uptime)
 		prometheus.MustRegister(m.lastEventTime)
+		prometheus.MustRegister(m.pidsPrunedTotal)
 		metricsRegistered = true
 	}
 

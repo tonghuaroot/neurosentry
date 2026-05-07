@@ -93,8 +93,8 @@ NeuroSentry's Go code builds on macOS, but eBPF programs must be compiled on Lin
 ### Option 1: SSH to Linux Server
 
 ```bash
-# Connect to your Linux test server
-ssh user@your-linux-host
+# Connect to test server
+ssh -i ~/.ssh/your-key.pem ubuntu@your-linux-build-host
 
 # Clone/pull repository
 cd /tmp/neurosentry_test
@@ -189,11 +189,12 @@ int program_name(void *ctx) { ... }
 
 ## Testing on Ubuntu 24.04
 
-The following steps apply to Ubuntu 24.04 with kernel 6.14+:
+The reference test host runs Ubuntu 24.04 with kernel 6.14. Any equivalent
+cloud or local VM with the kernel + clang + libbpf-dev prerequisites works.
 
 ```bash
-# SSH to your Linux server
-ssh user@your-linux-host
+# SSH to your build host
+ssh -i ~/.ssh/your-key.pem ubuntu@your-linux-build-host
 
 # Setup
 mkdir -p /tmp/neurosentry_test

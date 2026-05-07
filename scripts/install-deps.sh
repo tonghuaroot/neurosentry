@@ -61,14 +61,15 @@ case $OS in
             export PATH=$PATH:/usr/local/go/bin
         fi
 
-        # Install Docker if not present
+        # Docker
         if ! command -v docker &> /dev/null; then
-            log_warn "Docker not found. Installing Docker..."
-            curl -fsSL https://get.docker.com -o get-docker.sh
-            sudo sh get-docker.sh
-            rm get-docker.sh
-            sudo usermod -aG docker $USER
-            log_warn "Docker installed. You may need to log out and back in."
+            log_warn "Docker not found. Install it via the distro package:"
+            log_warn "  sudo apt-get install -y docker.io docker-compose-plugin"
+            log_warn "  sudo usermod -aG docker \$USER"
+            log_warn "Or follow the official guide: https://docs.docker.com/engine/install/"
+            log_warn "(Earlier versions of this script ran 'curl https://get.docker.com | sudo sh',"
+            log_warn " which is removed because piping a fetched script into a privileged shell"
+            log_warn " is not appropriate for a security-tooling project.)"
         fi
         ;;
 

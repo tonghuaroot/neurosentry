@@ -21,7 +21,10 @@ LLVM_STRIP="llvm-strip"
 # Check if we're on Linux
 if [[ "$OSTYPE" != "linux-gnu"* ]]; then
     echo -e "${YELLOW}Warning: Not running on Linux. This script must be run on a Linux system.${NC}"
-    echo "To compile eBPF programs, SSH to a Linux host (kernel 5.10+) and run this script there."
+    echo "To compile eBPF programs:"
+    echo "  1. SSH to a Linux build host with clang + libbpf-dev"
+    echo "  2. Run this script there"
+    echo "  (or use pkg/bpf/generate_ebpf.sh which builds via Docker)"
     exit 1
 fi
 

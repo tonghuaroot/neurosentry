@@ -6,37 +6,11 @@ NeuroSentry is a kernel-level runtime protection system for AI inference environ
 
 ## System Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           User Space (Go Agent)                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │   Controller │  │ Policy Engine│  │Event Processor│  │ Metrics Server│   │
-│  │              │  │              │  │              │  │              │   │
-│  │- Lifecycle   │  │- Rule Engine │  │- Ring Buffer │  │- Prometheus  │   │
-│  │- Orchestration│ │- Enforcement │  │- Parsing     │  │- HTTP API    │   │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
-│         │                  │                  │                  │          │
-└─────────┼──────────────────┼──────────────────┼──────────────────┼──────────┘
-          │                  │                  │                  │
-          │         eBPF Maps (Shared Memory)                     │
-          │                  │                  │                  │
-┌─────────┼──────────────────┼──────────────────┼──────────────────┼──────────┐
-│         ▼                  ▼                  ▼                  ▼          │
-│                        Kernel Space (eBPF)                                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │  LSM Hooks   │  │ TC/XDP Progs │  │   Uprobes    │  │  Kprobes     │   │
-│  │              │  │              │  │              │  │              │   │
-│  │- file_open   │  │- TC Ingress  │  │- PyTorch     │  │- System Calls│   │
-│  │- mmap_file   │  │- TC Egress   │  │- TensorFlow  │  │              │   │
-│  │- permission  │  │- XDP (opt)   │  │- Pickle      │  │              │   │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘   │
-│         │                  │                  │                  │          │
-│         ▼                  ▼                  ▼                  ▼          │
-│  ┌──────────────────────────────────────────────────────────────────────┐   │
-│  │                        Linux Kernel                                   │   │
-│  └──────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="diagrams/architecture-overview.svg" alt="System architecture: User-space Go agent (Controller, Policy Engine, Event Processor, Metrics Server) communicating with four kernel-space eBPF programs (LSM file_open, TC ingress/egress, XDP, Uprobes) via shared eBPF maps and ring buffer" width="900"/>
+</p>
+
+The Go user-space agent loads and orchestrates four eBPF programs in the kernel; the programs read kernel events at the VFS, network, and uprobe layers and stream them up to user space through ring buffers. Policy decisions are pushed down via shared BPF maps. See the [LSM enforcement-path diagram](diagrams/lsm-eperm-flow.svg) for the deny path that returns `-EPERM` to the calling process before any byte of a protected file is read.
 
 ## Components
 
@@ -139,29 +113,11 @@ NeuroSentry is a kernel-level runtime protection system for AI inference environ
 
 ### Defense Layers
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Application Layer                         │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐   │
-│  │ Inference     │  │  API Gateway  │  │  Monitoring   │   │
-│  │ Server        │  │  (WAF, LLM)   │  │  (Prometheus) │   │
-│  └───────────────┘  └───────────────┘  └───────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            ▲
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                 NeuroSentry Protection Layer                 │
-│  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐   │
-│  │  LSM Hooks    │  │  TC/XDP       │  │   Uprobes     │   │
-│  │ (File Access) │  │ (Network)     │  │ (Frameworks)  │   │
-│  └───────────────┘  └───────────────┘  └───────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            ▲
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                      Linux Kernel                            │
-└─────────────────────────────────────────────────────────────┘
-```
+<p align="center">
+  <img src="diagrams/defense-in-depth.svg" alt="Defense-in-depth: NeuroSentry sits between the application layer (inference servers, API gateways, frameworks) and the Linux kernel, intercepting model-asset access via four eBPF hook types. Threats (model theft, pickle bombs, memory scraping, container escape, network exfil, privileged insiders) hit NeuroSentry's enforcement layer before reaching the kernel." width="900"/>
+</p>
+
+NeuroSentry is positioned as a kernel-side gatekeeper rather than an application library: every protected-asset operation issued by the application layer flows through the LSM/TC/XDP/uprobe hooks before reaching the kernel's VFS or network stack. Threats targeting the model artifacts — file theft, pickle deserialization attacks, network exfiltration, container-escape paths — are intercepted at the layer where they cannot be opted out of by the calling process.
 
 ## Performance Characteristics
 

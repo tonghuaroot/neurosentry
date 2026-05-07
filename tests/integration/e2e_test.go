@@ -42,11 +42,11 @@ func TestE2ELSMFileProtection(t *testing.T) {
 	cfg := &config.Config{
 		Protection: config.ProtectionConfig{
 			ModelFIM: config.ModelFIMConfig{
-				Enabled:              true,
-				EnforceMode:          true,
-				LogAllAccess:         true,
-				ProtectedExtensions:  []string{".safetensors"},
-				ProtectedPaths:       []string{tmpDir},
+				Enabled:             true,
+				EnforceMode:         true,
+				LogAllAccess:        true,
+				ProtectedExtensions: []string{".safetensors"},
+				ProtectedPaths:      []string{tmpDir},
 			},
 		},
 	}
@@ -244,11 +244,11 @@ func TestE2EFullStack(t *testing.T) {
 	cfg := &config.Config{
 		Protection: config.ProtectionConfig{
 			ModelFIM: config.ModelFIMConfig{
-				Enabled:              true,
-				EnforceMode:          true,
-				LogAllAccess:         true,
-				ProtectedExtensions:  []string{".safetensors", ".gguf", ".pth"},
-				ProtectedPaths:       []string{tmpDir},
+				Enabled:             true,
+				EnforceMode:         true,
+				LogAllAccess:        true,
+				ProtectedExtensions: []string{".safetensors", ".gguf", ".pth"},
+				ProtectedPaths:      []string{tmpDir},
 			},
 			NetworkContainment: config.NetworkContainmentConfig{
 				Enabled:           true,

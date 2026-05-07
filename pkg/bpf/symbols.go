@@ -96,9 +96,10 @@ func resolveELFSymbols(libPath string, patterns []string) ([]SymbolInfo, error) 
 func findPickleModule() (string, error) {
 	// Common paths for _pickle module
 	picklePaths := []string{
-		// System Python on Debian/Ubuntu
+		// System Python on Debian/Ubuntu (multiarch dirs vary by arch)
 		"/usr/lib/python3*/lib-dynload/_pickle.cpython-*.so",
 		"/usr/lib/x86_64-linux-gnu/python3*/lib-dynload/_pickle.cpython-*.so",
+		"/usr/lib/aarch64-linux-gnu/python3*/lib-dynload/_pickle.cpython-*.so",
 		// System Python on RHEL/CentOS
 		"/usr/lib64/python3*/lib-dynload/_pickle.cpython-*.so",
 		// Conda environments
@@ -242,10 +243,10 @@ func getPickleSymbolPatterns() []string {
 	return []string{
 		// Highest priority: direct pickle load functions (if _pickle.so exists separately)
 		// Python 3.8-3.12: separate _pickle.cpython-*.so module
-		`^_pickle_loads$`,                    // pickle.loads entry
-		`^_pickle_load$`,                     // pickle.load entry
-		`^_pickle_Unpickler_load$`,           // Unpickler.load method
-		`^_pickle_Unpickler_load_impl$`,      // Internal implementation
+		`^_pickle_loads$`,               // pickle.loads entry
+		`^_pickle_load$`,                // pickle.load entry
+		`^_pickle_Unpickler_load$`,      // Unpickler.load method
+		`^_pickle_Unpickler_load_impl$`, // Internal implementation
 
 		// High priority: module initialization (always available in libpython)
 		// Called once when module is imported
@@ -261,8 +262,8 @@ func getPickleSymbolPatterns() []string {
 
 		// Python C API functions (fallback)
 		// These are called during pickle operations
-		`^PyObject_Call$`,              // Generic object call (noisy but reliable)
-		`^PyPickleBuffer_FromObject$`,  // Python 3.8+ buffer protocol
+		`^PyObject_Call$`,             // Generic object call (noisy but reliable)
+		`^PyPickleBuffer_FromObject$`, // Python 3.8+ buffer protocol
 		`^PyPickleBuffer_GetBuffer$`,
 		`^PyPickleBuffer_Release$`,
 

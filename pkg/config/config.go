@@ -6,6 +6,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -20,71 +21,75 @@ type Config struct {
 
 // ProtectionConfig defines which protection modules are enabled
 type ProtectionConfig struct {
-	ModelFIM            ModelFIMConfig            `mapstructure:"model_fim"`
-	NetworkContainment  NetworkContainmentConfig  `mapstructure:"network_containment"`
-	PickleProtection    PickleProtectionConfig    `mapstructure:"pickle_protection"`
+	ModelFIM             ModelFIMConfig             `mapstructure:"model_fim"`
+	NetworkContainment   NetworkContainmentConfig   `mapstructure:"network_containment"`
+	PickleProtection     PickleProtectionConfig     `mapstructure:"pickle_protection"`
 	PyTorchObservability PyTorchObservabilityConfig `mapstructure:"pytorch_observability"`
 }
 
 // ModelFIMConfig configures File Integrity Monitoring for model files
 type ModelFIMConfig struct {
-	Enabled              bool     `mapstructure:"enabled"`
-	ProtectedExtensions  []string `mapstructure:"protected_extensions"`
-	ProtectedPaths       []string `mapstructure:"protected_paths"`
-	TrustedPIDs          []int    `mapstructure:"trusted_pids"`
-	TrustedContainers    []string `mapstructure:"trusted_containers"`
-	EnforceMode          bool     `mapstructure:"enforce_mode"`
-	LogAllAccess         bool     `mapstructure:"log_all_access"`
-	AllowProcessWhitelist bool    `mapstructure:"allow_process_whitelist"`
+	Enabled               bool     `mapstructure:"enabled"`
+	ProtectedExtensions   []string `mapstructure:"protected_extensions"`
+	ProtectedPaths        []string `mapstructure:"protected_paths"`
+	TrustedPIDs           []int    `mapstructure:"trusted_pids"`
+	TrustedContainers     []string `mapstructure:"trusted_containers"`
+	EnforceMode           bool     `mapstructure:"enforce_mode"`
+	LogAllAccess          bool     `mapstructure:"log_all_access"`
+	AllowProcessWhitelist bool     `mapstructure:"allow_process_whitelist"`
 }
 
 // NetworkContainmentConfig configures XDP-based network filtering
 type NetworkContainmentConfig struct {
-	Enabled          bool     `mapstructure:"enabled"`
-	AllowedEgress    []string `mapstructure:"allowed_egress"`
-	BlockedIPs       []string `mapstructure:"blocked_ips"`
-	BlockExfiltration bool    `mapstructure:"block_exfiltration"`
-	ExfilThresholdMB int      `mapstructure:"exfil_threshold_mb"`
-	Interfaces       []string `mapstructure:"interfaces"`
-	AllowDNS         bool     `mapstructure:"allow_dns"`
+	Enabled           bool     `mapstructure:"enabled"`
+	AllowedEgress     []string `mapstructure:"allowed_egress"`
+	BlockedIPs        []string `mapstructure:"blocked_ips"`
+	BlockExfiltration bool     `mapstructure:"block_exfiltration"`
+	ExfilThresholdMB  int      `mapstructure:"exfil_threshold_mb"`
+	Interfaces        []string `mapstructure:"interfaces"`
+	AllowDNS          bool     `mapstructure:"allow_dns"`
 }
 
 // PickleProtectionConfig configures pickle bomb protection
 type PickleProtectionConfig struct {
-	Enabled           bool     `mapstructure:"enabled"`
-	DangerousSymbols  []string `mapstructure:"dangerous_symbols"`
-	BlockOnDetect     bool     `mapstructure:"block_on_detect"`
-	StackTraceDepth   int      `mapstructure:"stack_trace_depth"`
+	Enabled          bool     `mapstructure:"enabled"`
+	DangerousSymbols []string `mapstructure:"dangerous_symbols"`
+	BlockOnDetect    bool     `mapstructure:"block_on_detect"`
+	StackTraceDepth  int      `mapstructure:"stack_trace_depth"`
 }
 
 // PyTorchObservabilityConfig configures PyTorch runtime monitoring
 type PyTorchObservabilityConfig struct {
-	Enabled           bool     `mapstructure:"enabled"`
-	LibtorchPath      string   `mapstructure:"libtorch_path"`
-	MonitorModelLoads bool     `mapstructure:"monitor_model_loads"`
-	CalculateHashes   bool     `mapstructure:"calculate_hashes"`
+	Enabled           bool   `mapstructure:"enabled"`
+	LibtorchPath      string `mapstructure:"libtorch_path"`
+	MonitorModelLoads bool   `mapstructure:"monitor_model_loads"`
+	CalculateHashes   bool   `mapstructure:"calculate_hashes"`
 }
 
 // AgentConfig configures the user-space agent
 type AgentConfig struct {
-	MetricsPort       int      `mapstructure:"metrics_port"`
-	LogLevel          string   `mapstructure:"log_level"`
-	LogFormat         string   `mapstructure:"log_format"`
-	AlertWebhook      string   `mapstructure:"alert_webhook"`
-	AlertSilenceSec   int      `mapstructure:"alert_silence_sec"`
-	KubernetesEnabled bool     `mapstructure:"kubernetes_enabled"`
-	KubeletPath       string   `mapstructure:"kubelet_path"`
-	EventSampleRate   float64  `mapstructure:"event_sample_rate"`   // 0.0-1.0, 1.0 = no sampling
-	EventBufferSize   int      `mapstructure:"event_buffer_size"`   // Event channel buffer size
+	MetricsPort       int     `mapstructure:"metrics_port"`
+	LogLevel          string  `mapstructure:"log_level"`
+	LogFormat         string  `mapstructure:"log_format"`
+	AlertWebhook      string  `mapstructure:"alert_webhook"`
+	AlertSilenceSec   int     `mapstructure:"alert_silence_sec"`
+	KubernetesEnabled bool    `mapstructure:"kubernetes_enabled"`
+	KubeletPath       string  `mapstructure:"kubelet_path"`
+	EventSampleRate   float64 `mapstructure:"event_sample_rate"` // 0.0-1.0, 1.0 = no sampling
+	EventBufferSize   int     `mapstructure:"event_buffer_size"` // Event channel buffer size
+	// PIDPruneInterval controls how often the controller scans the
+	// trusted_pids BPF map and removes entries whose process no longer
+	// exists in /proc. Closes the PID-recycle TOCTOU window. Default 30s.
+	PIDPruneInterval time.Duration `mapstructure:"pid_prune_interval"`
 }
 
 // BPFConfig configures eBPF program behavior
 type BPFConfig struct {
-	LogLevel          int      `mapstructure:"log_level"`
-	RingBufferSizeKB  int      `mapstructure:"ring_buffer_size_kb"`
-	PerCPUMapSize     int      `mapstructure:"per_cpu_map_size"`
-	VerifierLogLevel  int      `mapstructure:"verifier_log_level"`
-	DisableCORE       bool     `mapstructure:"disable_core"`
+	LogLevel         int  `mapstructure:"log_level"`
+	RingBufferSizeKB int  `mapstructure:"ring_buffer_size_kb"`
+	PerCPUMapSize    int  `mapstructure:"per_cpu_map_size"`
+	VerifierLogLevel int  `mapstructure:"verifier_log_level"`
+	DisableCORE      bool `mapstructure:"disable_core"`
 }
 
 // Default returns the default configuration
@@ -98,21 +103,21 @@ func Default() *Config {
 				LogAllAccess:        false,
 			},
 			NetworkContainment: NetworkContainmentConfig{
-				Enabled:          true,
-				AllowedEgress:    []string{"10.0.0.0/8", "172.16.0.0/12"},
+				Enabled:           true,
+				AllowedEgress:     []string{"10.0.0.0/8", "172.16.0.0/12"},
 				BlockExfiltration: true,
-				ExfilThresholdMB: 100,
-				AllowDNS:         true,
+				ExfilThresholdMB:  100,
+				AllowDNS:          true,
 			},
 			PickleProtection: PickleProtectionConfig{
-				Enabled:       true,
+				Enabled:          true,
 				DangerousSymbols: []string{"os.system", "eval", "exec", "__import__", "subprocess"},
-				BlockOnDetect:  true,
+				BlockOnDetect:    true,
 			},
 			PyTorchObservability: PyTorchObservabilityConfig{
 				Enabled:           true,
-				MonitorModelLoads:  true,
-				CalculateHashes:    false,
+				MonitorModelLoads: true,
+				CalculateHashes:   false,
 			},
 		},
 		Agent: AgentConfig{
@@ -123,10 +128,15 @@ func Default() *Config {
 			KubernetesEnabled: true,
 			EventSampleRate:   1.0, // No sampling by default
 			EventBufferSize:   1000,
+			// 5 s default — short enough to defend the PID-recycle TOCTOU
+			// window even on inference servers that fork/restart workers
+			// every few seconds (vLLM, Triton, Ray Serve). Operators with
+			// quieter workloads can tune this up to reduce /proc churn.
+			PIDPruneInterval: 5 * time.Second,
 		},
 		BPF: BPFConfig{
 			RingBufferSizeKB: 256,
-			PerCPUMapSize:     1024,
+			PerCPUMapSize:    1024,
 		},
 		PolicyPath: "/etc/neurosentry/policy.yaml",
 	}

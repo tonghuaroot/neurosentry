@@ -237,7 +237,6 @@ func TestModelAccessEventStruct(t *testing.T) {
 	}
 	copy(event.Comm[:], "test")
 	copy(event.Filename[:], "/test/path")
-	copy(event.CGroup[:], "/cgroup/test")
 
 	if event.PID != 1234 {
 		t.Errorf("Expected PID 1234, got %d", event.PID)

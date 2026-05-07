@@ -32,8 +32,8 @@ import (
 
 // Manager manages eBPF programs lifecycle
 type Manager struct {
-	cfg     *config.Config
-	policy  *policy.Policy
+	cfg    *config.Config
+	policy *policy.Policy
 
 	// eBPF objects
 	lsmObjs    *NeuroSentryLSMObjects
@@ -78,6 +78,27 @@ func (m *Manager) Load() error {
 
 	// Load LSM programs
 	if m.cfg.Protection.ModelFIM.Enabled {
+		// Verify `bpf` is in the active LSM stack BEFORE attempting to load.
+		// If the host booted without `lsm=...,bpf` in the kernel cmdline, the
+		// program loads but the hook is never invoked at runtime — silent
+		// enforcement failure with no LSM event ever firing. Earlier versions
+		// happily logged "LSM hooks attached" in that broken state; warn loudly
+		// here so the operator sees the gap during agent boot.
+		switch active, err := checkBPFLSMActive(); {
+		case err != nil:
+			// Couldn't read /sys/kernel/security/lsm (e.g., agent runs in a
+			// container where securityfs isn't mounted). Inconclusive — don't
+			// scare the operator. The LSM still attaches and fires correctly
+			// when the host kernel was booted with `bpf` in the LSM list.
+			log.Printf("Note: could not verify BPF LSM membership from agent context (%v); trusting loaded program.", err)
+		case !active:
+			log.Printf("WARNING: 'bpf' is NOT in the active LSM stack — the LSM hook will load but never be invoked.")
+			log.Printf("WARNING: Add 'bpf' to the kernel cmdline:")
+			log.Printf("WARNING:   GRUB_CMDLINE_LINUX_DEFAULT=\"... lsm=lockdown,capability,landlock,yama,apparmor,bpf\"")
+			log.Printf("WARNING:   then run 'sudo update-grub' and reboot.")
+		default:
+			log.Printf("Verified: 'bpf' is in the active LSM stack.")
+		}
 		if err := m.loadLSM(); err != nil {
 			return fmt.Errorf("failed to load LSM programs: %w", err)
 		}
@@ -98,6 +119,15 @@ func (m *Manager) Load() error {
 	}
 
 	return nil
+}
+
+// EventsMap returns the LSM ringbuf event map (for the user-space reader to
+// open with ringbuf.NewReader). Returns nil if LSM hasn't loaded.
+func (m *Manager) EventsMap() *ebpf.Map {
+	if m.lsmObjs == nil {
+		return nil
+	}
+	return m.lsmObjs.Events
 }
 
 // loadLSM loads LSM BPF programs
@@ -380,29 +410,43 @@ func (m *Manager) initLSMConfig() error {
 		return fmt.Errorf("setting LSM config: %w", err)
 	}
 
-	// Add protected extensions
-	// Note: Map key is uint32 (unsigned int in C), value is uint8
-	extMap := map[string]uint32{
-		".safetensors": 1,
-		".gguf":        2,
-		".pth":         3,
-		".pt":          4,
-		".pb":          5,
-		".h5":          6,
-		".pkl":         7,
-		".bin":         8,
-	}
-
+	// Add protected extensions. Key: 16-byte zero-padded extension string
+	// (e.g. ".safetensors\0\0\0\0"). Value: uint8(1). The C-side LSM hook
+	// extracts the file's actual extension from the open path and looks it
+	// up in this map, so the YAML list is now data-driven (not just
+	// informational — fixes the issue where adding/removing extensions in
+	// YAML had no effect because the hook used a hard-coded list).
 	for _, ext := range m.cfg.Protection.ModelFIM.ProtectedExtensions {
-		if code, ok := extMap[ext]; ok {
-			val := uint8(1)
-			if err := m.lsmObjs.ProtectedExtensions.Put(&code, &val); err != nil {
-				return fmt.Errorf("adding protected extension %s: %w", ext, err)
-			}
+		key, err := extensionMapKey(ext)
+		if err != nil {
+			log.Printf("Warning: skipping protected extension %q: %v", ext, err)
+			continue
+		}
+		val := uint8(1)
+		if err := m.lsmObjs.ProtectedExtensions.Put(key[:], &val); err != nil {
+			return fmt.Errorf("adding protected extension %s: %w", ext, err)
 		}
 	}
 
 	return nil
+}
+
+// extensionMapKey turns a textual extension like ".safetensors" into the
+// fixed 16-byte zero-padded key the BPF protected_extensions map expects.
+// Extensions must start with '.' and be at most 15 chars (the 16th byte
+// is reserved for the trailing NUL).
+func extensionMapKey(ext string) (key [16]byte, err error) {
+	if ext == "" {
+		return key, fmt.Errorf("empty extension")
+	}
+	if ext[0] != '.' {
+		return key, fmt.Errorf("extension must start with '.': %q", ext)
+	}
+	if len(ext) > 15 {
+		return key, fmt.Errorf("extension longer than 15 chars: %q", ext)
+	}
+	copy(key[:], ext)
+	return key, nil
 }
 
 // initXDPConfig initializes XDP configuration maps
@@ -464,6 +508,52 @@ func (m *Manager) RemoveTrustedPID(pid uint32) error {
 	return m.lsmObjs.TrustedPids.Delete(&pid)
 }
 
+// PruneDeadTrustedPIDs walks the trusted_pids BPF map, checks each PID
+// against /proc, and removes entries whose process no longer exists. This
+// closes the PID-recycling TOCTOU window: when a trusted process exits and
+// the kernel later reuses that PID for an unrelated (potentially attacker-
+// controlled) process, that process would otherwise inherit trust. Returns
+// the number of pruned entries (or an error). Safe to call concurrently
+// with AddTrustedPID / RemoveTrustedPID since BPF map operations are
+// atomic per key.
+func (m *Manager) PruneDeadTrustedPIDs() (int, error) {
+	if m.lsmObjs == nil || m.lsmObjs.TrustedPids == nil {
+		return 0, fmt.Errorf("LSM not loaded")
+	}
+
+	var (
+		nextKey uint32
+		val     uint8
+		toCheck []uint32
+	)
+
+	// Snapshot keys first; deleting while iterating a hash map is undefined
+	// per the cilium/ebpf docs.
+	iter := m.lsmObjs.TrustedPids.Iterate()
+	for iter.Next(&nextKey, &val) {
+		toCheck = append(toCheck, nextKey)
+	}
+	if err := iter.Err(); err != nil {
+		return 0, fmt.Errorf("iterating trusted_pids: %w", err)
+	}
+
+	pruned := 0
+	for _, pid := range toCheck {
+		// Re-check immediately before delete to close the race where a
+		// concurrent AddTrustedPID(pid) re-validated /proc/<pid> after our
+		// snapshot was taken. If the PID is alive again, leave it alone.
+		if _, err := os.Stat(fmt.Sprintf("/proc/%d", pid)); err == nil {
+			continue
+		}
+		// Use the same logged path as RemoveTrustedPID so the audit trail
+		// is consistent ("SECURITY: Removing PID N from trusted list").
+		if err := m.RemoveTrustedPID(pid); err == nil {
+			pruned++
+		}
+	}
+	return pruned, nil
+}
+
 // AddProtectedExtension adds a protected file extension
 // Security: validates extension and logs the operation
 func (m *Manager) AddProtectedExtension(ext string) error {
@@ -471,28 +561,16 @@ func (m *Manager) AddProtectedExtension(ext string) error {
 		return fmt.Errorf("LSM not loaded")
 	}
 
-	// Note: Map key is uint32 (unsigned int in C), value is uint8
-	extMap := map[string]uint32{
-		".safetensors": 1,
-		".gguf":        2,
-		".pth":         3,
-		".pt":          4,
-		".pb":          5,
-		".h5":          6,
-		".pkl":         7,
-		".bin":         8,
-	}
-
-	code, ok := extMap[ext]
-	if !ok {
-		return fmt.Errorf("unknown extension: %s", ext)
+	key, err := extensionMapKey(ext)
+	if err != nil {
+		return err
 	}
 
 	// Log the operation for audit trail
-	log.Printf("SECURITY: Adding protected extension %s (code=%d)", ext, code)
+	log.Printf("SECURITY: Adding protected extension %s", ext)
 
 	value := uint8(1)
-	return m.lsmObjs.ProtectedExtensions.Put(&code, &value)
+	return m.lsmObjs.ProtectedExtensions.Put(key[:], &value)
 }
 
 // AddAllowedIP adds an IP or CIDR to the network allowlist
@@ -635,34 +713,41 @@ func (m *Manager) ClearMaps() error {
 	return nil
 }
 
-// clearBPFMap iterates over a BPF map and deletes all entries
+// clearBPFMap iterates over a BPF map and deletes all entries.
+//
+// Implementation note: cilium/ebpf's MapIterator.Next requires a non-nil
+// `valueOut` for any map whose value-size is non-zero — passing nil makes
+// the underlying Lookup() return an unmarshal error and the iterator
+// silently aborts after zero entries (which is exactly what was happening
+// for protected_extensions: 16-byte keys, 1-byte uint8 value, value passed
+// as nil → 0 entries cleared on SIGHUP, dead extensions stayed live).
+//
+// Allocate a value buffer sized to the map's actual ValueSize() (we don't
+// care about the data, only that Lookup has somewhere to write).
 func clearBPFMap(m *ebpf.Map) error {
 	if m == nil {
 		return nil
 	}
 
-	var key, nextKey interface{}
-
-	// Determine key type based on map key size
 	keySize := int(m.KeySize())
+	valueSize := int(m.ValueSize())
+
+	// Pick a key receiver matching the map's key size. The cilium/ebpf
+	// iterator marshals the key into the receiver via reflection.
+	var key interface{}
 	switch keySize {
 	case 4:
 		key = new(uint32)
-		nextKey = new(uint32)
 	case 32:
 		key = new([32]byte)
-		nextKey = new([32]byte)
 	default:
-		// Generic byte slice for other sizes
 		key = make([]byte, keySize)
-		nextKey = make([]byte, keySize)
 	}
+	value := make([]byte, valueSize) // never nil — see note above
 
-	// Iterate and collect keys to delete
 	var keysToDelete []interface{}
 	iter := m.Iterate()
-	for iter.Next(key, nil) {
-		// Copy the key value
+	for iter.Next(key, &value) {
 		switch k := key.(type) {
 		case *uint32:
 			v := *k
@@ -671,17 +756,17 @@ func clearBPFMap(m *ebpf.Map) error {
 			v := *k
 			keysToDelete = append(keysToDelete, &v)
 		default:
-			// For byte slices, make a copy
 			if bs, ok := key.([]byte); ok {
 				cp := make([]byte, len(bs))
 				copy(cp, bs)
 				keysToDelete = append(keysToDelete, cp)
 			}
 		}
-		_ = nextKey // silence unused warning
+	}
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterating map for clear: %w", err)
 	}
 
-	// Delete collected keys
 	for _, k := range keysToDelete {
 		if err := m.Delete(k); err != nil && !isNotExistError(err) {
 			return err
@@ -775,6 +860,32 @@ func checkKernelVersion() error {
 
 	log.Printf("Kernel version %d.%d detected (requires %d.%d+)", major, minor, requiredMajor, requiredMinor)
 	return nil
+}
+
+// checkBPFLSMActive verifies that `bpf` is in the active LSM stack at agent
+// startup. Required for the LSM `file_open` hook to actually be invoked at
+// runtime. Three return states:
+//
+//	(true, nil)   — `bpf` is present in the active LSM stack
+//	(false, nil)  — file readable, `bpf` definitively NOT in the stack
+//	(false, err)  — file unreadable (e.g. running in a container without
+//	                securityfs); inconclusive
+//
+// The caller distinguishes the three so the operator sees a real WARNING
+// only when the file says `bpf` is absent, not when we couldn't ask.
+func checkBPFLSMActive() (bool, error) {
+	const lsmFile = "/sys/kernel/security/lsm"
+	data, err := os.ReadFile(lsmFile)
+	if err != nil {
+		return false, fmt.Errorf("%s unreadable: %w", lsmFile, err)
+	}
+	stack := strings.TrimSpace(string(data))
+	for _, mod := range strings.Split(stack, ",") {
+		if strings.TrimSpace(mod) == "bpf" {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // getDefaultInterface returns the default network interface
@@ -917,7 +1028,7 @@ func (m *Manager) attachPickleProbes() error {
 	// Priority order for load-related symbols
 	loadSymbolPriority := []string{
 		"_pickle_loads", "_pickle_load", "_pickle_Unpickler_load", // Best: direct pickle functions
-		"PyInit__pickle", // Good: module init (called on import)
+		"PyInit__pickle",            // Good: module init (called on import)
 		"PyPickleBuffer_FromObject", // Fallback: buffer operations
 	}
 
@@ -1003,11 +1114,16 @@ func findLibrary(patterns []string) (string, error) {
 
 // findPythonLibrary finds the Python shared library
 func findPythonLibrary() (string, error) {
-	// Common Python library locations
+	// Common Python library locations across distros and architectures
+	// (Debian/Ubuntu use multiarch triplet directories: x86_64-linux-gnu,
+	// aarch64-linux-gnu, etc).
 	pythonPaths := []string{
 		"/usr/lib/x86_64-linux-gnu/libpython3*.so",
+		"/usr/lib/aarch64-linux-gnu/libpython3*.so",
 		"/usr/local/lib/libpython3*.so",
 		"/lib/x86_64-linux-gnu/libpython3*.so",
+		"/lib/aarch64-linux-gnu/libpython3*.so",
+		"/usr/lib64/libpython3*.so", // RHEL/CentOS
 		// Conda environments
 		"/home/*/miniconda3/lib/libpython3*.so",
 		"/opt/conda/lib/libpython3*.so",

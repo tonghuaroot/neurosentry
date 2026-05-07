@@ -5,7 +5,7 @@ Thank you for your interest in contributing to NeuroSentry! This document provid
 ## Development Environment
 
 ### Requirements
-- Go 1.21+
+- Go 1.24+ (matches `go.mod`)
 - Clang 12+ (for eBPF compilation)
 - Linux 5.10+ (for eBPF functionality)
 - Docker (optional, for containerized development)

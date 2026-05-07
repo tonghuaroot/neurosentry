@@ -23,13 +23,13 @@ const (
 
 // Policy represents a security policy
 type Policy struct {
-	Version  string              `yaml:"version"`
-	Metadata PolicyMetadata      `yaml:"metadata"`
-	Rules    []Rule              `yaml:"rules"`
-	Responses map[string]Response `yaml:"responses"`
-	Alerts    AlertConfig        `yaml:"alerts"`
-	Trusted   TrustedConfig      `yaml:"trusted"`
-	Exemptions ExemptionConfig   `yaml:"exemptions"`
+	Version    string              `yaml:"version"`
+	Metadata   PolicyMetadata      `yaml:"metadata"`
+	Rules      []Rule              `yaml:"rules"`
+	Responses  map[string]Response `yaml:"responses"`
+	Alerts     AlertConfig         `yaml:"alerts"`
+	Trusted    TrustedConfig       `yaml:"trusted"`
+	Exemptions ExemptionConfig     `yaml:"exemptions"`
 }
 
 // PolicyMetadata contains policy metadata
@@ -53,15 +53,15 @@ type Rule struct {
 
 // RuleCondition defines when a rule matches
 type RuleCondition struct {
-	Type           string   `yaml:"type"`
-	Extensions     []string `yaml:"extensions,omitempty"`
-	Paths          []string `yaml:"paths,omitempty"`
-	Destinations   []string `yaml:"destinations,omitempty"`
+	Type            string   `yaml:"type"`
+	Extensions      []string `yaml:"extensions,omitempty"`
+	Paths           []string `yaml:"paths,omitempty"`
+	Destinations    []string `yaml:"destinations,omitempty"`
 	SizeThresholdMB int      `yaml:"size_threshold_mb,omitempty"`
-	Port           int      `yaml:"port,omitempty"`
-	Protocol       string   `yaml:"protocol,omitempty"`
-	HashMismatch   bool     `yaml:"hash_mismatch,omitempty"`
-	CIDRMatch      string   `yaml:"cidr,omitempty"`
+	Port            int      `yaml:"port,omitempty"`
+	Protocol        string   `yaml:"protocol,omitempty"`
+	HashMismatch    bool     `yaml:"hash_mismatch,omitempty"`
+	CIDRMatch       string   `yaml:"cidr,omitempty"`
 }
 
 // Response defines a response action
@@ -74,15 +74,15 @@ type Response struct {
 
 // AlertConfig contains alert configuration
 type AlertConfig struct {
-	Webhook          string `yaml:"webhook"`
-	SilenceSeconds   int    `yaml:"silence_seconds"`
-	RateLimit        int    `yaml:"rate_limit"`
-	RateLimitWindow  string `yaml:"rate_limit_window"`
+	Webhook         string `yaml:"webhook"`
+	SilenceSeconds  int    `yaml:"silence_seconds"`
+	RateLimit       int    `yaml:"rate_limit"`
+	RateLimitWindow string `yaml:"rate_limit_window"`
 }
 
 // TrustedConfig contains trusted entity configuration
 type TrustedConfig struct {
-	Processes []TrustedProcess `yaml:"processes"`
+	Processes  []TrustedProcess   `yaml:"processes"`
 	Containers []TrustedContainer `yaml:"containers"`
 }
 

@@ -30,9 +30,9 @@ type MetricsCollector struct {
 	activeConnections prometheus.Gauge
 
 	// Local counters
-	eventCount   int64
-	threatCount  int64
-	lastEvent    time.Time
+	eventCount  int64
+	threatCount int64
+	lastEvent   time.Time
 }
 
 // NewMetricsCollector creates a new metrics collector
@@ -282,10 +282,10 @@ func (e *EventProcessor) Stop() error {
 
 // AlertManager handles alert notifications
 type AlertManager struct {
-	webhookURL  string
-	silenceSec  int
-	lastAlert   map[string]time.Time
-	mu          sync.RWMutex
+	webhookURL string
+	silenceSec int
+	lastAlert  map[string]time.Time
+	mu         sync.RWMutex
 }
 
 // NewAlertManager creates a new alert manager

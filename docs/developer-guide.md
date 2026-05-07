@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- Go 1.21+
+- Go 1.24+ (matches `go.mod`)
 - Clang 12+
 - LLVM toolchain
 - libbpf development headers
@@ -270,7 +270,7 @@ bpftrace -e 'kprobe:bpf_prog_run_xdp { printf("XDP prog run\n"); }'
 
 ### Security Issues
 
-For security vulnerabilities, use [GitHub Security Advisories](https://github.com/tonghuaroot/neurosentry/security/advisories/new).
+For security vulnerabilities, email: tonghuaroot@gmail.com (subject prefix `[NeuroSentry Security]`). See [SECURITY.md](../SECURITY.md) for details.
 
 Do not open public issues for security problems.
 
@@ -325,4 +325,3 @@ go tool pprof http://localhost:2112/debug/pprof/profile
 - [eBPF Documentation](https://ebpf.io/)
 - [Cilium eBPF Library](https://github.com/cilium/ebpf)
 - [Linux Kernel BPF Documentation](https://www.kernel.org/doc/html/latest/bpf/)
-- [eBPF Go Library (cilium/ebpf)](https://github.com/cilium/ebpf)

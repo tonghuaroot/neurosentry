@@ -9,9 +9,9 @@ import (
 	"log"
 	"sync"
 
+	bpfpkg "github.com/neurosentry/neurosentry/pkg/bpf"
 	"github.com/neurosentry/neurosentry/pkg/config"
 	"github.com/neurosentry/neurosentry/pkg/policy"
-	bpfpkg "github.com/neurosentry/neurosentry/pkg/bpf"
 )
 
 // PolicyEngine evaluates events against security policies
@@ -27,9 +27,9 @@ type PolicyEngine struct {
 // NewPolicyEngine creates a new policy engine
 func NewPolicyEngine(cfg *config.Config, bpfMgr *bpfpkg.Manager, pol *policy.Policy, metrics *MetricsCollector) *PolicyEngine {
 	return &PolicyEngine{
-		cfg:    cfg,
-		bpfMgr: bpfMgr,
-		policy: pol,
+		cfg:     cfg,
+		bpfMgr:  bpfMgr,
+		policy:  pol,
 		metrics: metrics,
 	}
 }

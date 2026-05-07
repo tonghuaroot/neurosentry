@@ -1,8 +1,16 @@
 # NeuroSentry End-to-End Testing Results
 
-**Test Date**: 2026-02-11
 **Environment**: AWS EC2 (Ubuntu 24.04, Kernel 6.14)
-**NeuroSentry Version**: dev
+**Mode**: Monitor-only (`enforce_mode: false`)
+
+> **What this run shows.** The figures below come from a monitor-only
+> deployment and demonstrate that the agent attaches its eBPF programs,
+> reads events from kernel ring buffers, and ships metrics at scale
+> without verifier errors or crashes. They do not measure the LSM
+> `-EPERM` enforcement path; that path was verified on Linux 6.8
+> aarch64 separately and is documented in `CHANGELOG.md`. Read the
+> headline figures here as **agent stability and observability under
+> attack-like load**.
 
 ## Test Environment
 
@@ -173,14 +181,19 @@ find /tmp -name "*.safetensors" -o -name "*.pth" -o -name "*.gguf" -o -name "*.p
 *Prometheus successfully scraping NeuroSentry metrics endpoint*
 
 ### Metrics After Attack
-![Metrics After Attack](screenshots/metrics-after-attack.png)
-*Terminal output showing increased metrics after attack simulation*
 
-> **Note**: To view live dashboards, use SSH port forwarding to your Linux host, then open http://localhost:3000 in your browser.
+Sample metric values after the attack-simulation phase are shown in the
+Headline Figures table above (`neurosentry_lsm_access_attempts_total: 55,562`
+etc.).
+
+> **Note**: To view live dashboards on a deployment of your own, port-forward
+> Grafana (`:3000`) and Prometheus (`:9090`) from the test host with
+> `ssh -L 3000:localhost:3000 -L 9090:localhost:9090 your-user@your-host`,
+> then open <http://localhost:3000>. Reproduce on any Linux host meeting
+> the requirements listed in [`docs/user-guide.md`](user-guide.md):
+> kernel 5.10+ with `CONFIG_BPF_LSM=y` and `bpf` in the active LSM stack.
 
 ## OS Compatibility Testing
-
-**Test Date**: 2026-02-14
 
 NeuroSentry was tested for binary compatibility across multiple Linux distributions using Docker containers. The binary was compiled once on Ubuntu 24.04 and deployed to different OS containers.
 

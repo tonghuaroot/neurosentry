@@ -1,0 +1,2 @@
+# PNG renders are regenerated from .svg via rsvg-convert; keep only the source SVGs.
+png/

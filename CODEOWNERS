@@ -5,31 +5,31 @@
 # The last matching pattern takes precedence.
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-# Default owners for everything in the repo
-*                           @neurosentry/maintainers
+# Default owner for everything in the repo
+*                           @tonghuaroot
 
 # eBPF programs - require security review
-/pkg/bpf/                   @neurosentry/maintainers @neurosentry/security
-/pkg/bpf/*.c                @neurosentry/maintainers @neurosentry/security
+/pkg/bpf/                   @tonghuaroot
+/pkg/bpf/*.c                @tonghuaroot
 
 # Security-sensitive code
-/pkg/policy/                @neurosentry/maintainers @neurosentry/security
-SECURITY.md                 @neurosentry/maintainers @neurosentry/security
+/pkg/policy/                @tonghuaroot
+SECURITY.md                 @tonghuaroot
 
 # Configuration and deployment
-/deploy/                    @neurosentry/maintainers @neurosentry/devops
-/deploy/kubernetes/         @neurosentry/maintainers @neurosentry/devops
-/.github/                   @neurosentry/maintainers
+/deploy/                    @tonghuaroot
+/deploy/kubernetes/         @tonghuaroot
+/.github/                   @tonghuaroot
 
 # Documentation
-/docs/                      @neurosentry/maintainers
-*.md                        @neurosentry/maintainers
+/docs/                      @tonghuaroot
+*.md                        @tonghuaroot
 
 # CI/CD
-/.github/workflows/         @neurosentry/maintainers @neurosentry/devops
-.golangci.yml               @neurosentry/maintainers
-Makefile                    @neurosentry/maintainers
+/.github/workflows/         @tonghuaroot
+.golangci.yml               @tonghuaroot
+Makefile                    @tonghuaroot
 
 # Go module files
-go.mod                      @neurosentry/maintainers
-go.sum                      @neurosentry/maintainers
+go.mod                      @tonghuaroot
+go.sum                      @tonghuaroot

@@ -2,10 +2,12 @@
 
 ## Test Environment
 
-### Server (Direct)
-- **OS**: Ubuntu 24.04, Kernel 6.14
-- **Python**: 3.12.3
-- **PyTorch**: 2.10.0+cpu
+### Reference test host
+- **OS**: Ubuntu 24.04 LTS
+- **Kernel**: 6.14 (aarch64) or 6.8+ (x86_64) with `CONFIG_BPF_LSM=y` and
+  `bpf` in the active LSM stack (`/sys/kernel/security/lsm` must contain `bpf`).
+- **Python**: 3.12.x
+- **PyTorch**: 2.x (CPU build is sufficient for the pickle/uprobe tests)
 
 ### Component Status
 | Component | Status | Details |

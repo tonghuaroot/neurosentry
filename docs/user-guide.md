@@ -19,7 +19,7 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/neurosentry/neurosentry.git
+git clone https://github.com/tonghuaroot/neurosentry.git
 cd neurosentry
 
 # Install dependencies
@@ -99,13 +99,13 @@ agent:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable network filtering |
+| `enabled` | bool | `true` | Enable TC/XDP network observability |
 | `use_tc` | bool | `true` | Use TC instead of XDP (recommended for cloud) |
-| `allowed_egress` | []string | See defaults | Allowed destination CIDRs |
+| `allowed_egress` | []string | See defaults | Allowed destination CIDRs (single-IP precision today; LPM-trie for proper CIDR matching is roadmap) |
 | `blocked_ips` | []string | `[]` | Explicitly blocked IPs |
-| `block_exfiltration` | bool | `true` | Block large data transfers |
-| `exfil_threshold_mb` | int | `100` | Threshold (MB) for exfil detection |
-| `allow_dns` | bool | `true` | Allow DNS queries |
+| `block_exfiltration` | bool | `false` | **Monitor-only in v1.0** — TC programs log every flow above the threshold but do not drop. Drop-path (XDP_DROP variant) is roadmap; set this `true` to opt-in once it ships. |
+| `exfil_threshold_mb` | int | `100` | Threshold (MB) for exfil event emission |
+| `allow_dns` | bool | `true` | (Reserved; TC monitor does not yet differentiate DNS) |
 
 > **Note**: TC mode is monitor-only and never drops packets. It reports suspicious traffic for alerting. Use TC for cloud deployments (AWS, GCP, Azure) where XDP driver mode is unsupported.
 
@@ -113,9 +113,9 @@ agent:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable pickle monitoring |
-| `dangerous_symbols` | []string | See defaults | Dangerous function names |
-| `block_on_detect` | bool | `true` | Terminate dangerous operations |
+| `enabled` | bool | `true` | Enable pickle uprobe monitoring |
+| `dangerous_symbols` | []string | See defaults | Dangerous function names matched on `__reduce__` resolution |
+| `block_on_detect` | bool | `false` | **Observe-only in v1.0** — uprobes emit a critical event but do not interrupt the unpickle. Active block requires a different uprobe/uretprobe combination still on the verifier punch list. |
 | `stack_trace_depth` | int | `16` | Depth of stack trace on detection |
 
 #### PyTorch Observability
@@ -126,6 +126,19 @@ agent:
 | `libtorch_path` | string | `""` | Custom path to libtorch library (auto-detected if empty) |
 | `monitor_model_loads` | bool | `true` | Monitor `torch.load()` and related functions |
 | `calculate_hashes` | bool | `false` | Calculate SHA256 hashes of loaded models (performance impact) |
+
+#### Agent
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `metrics_port` | int | `2112` | Port to bind the Prometheus `/metrics` endpoint |
+| `log_level` | string | `info` | One of `debug`, `info`, `warn`, `error` |
+| `log_format` | string | `json` | `json` or `text` |
+| `alert_webhook` | string | `""` | URL POSTed on critical events |
+| `alert_silence_sec` | int | `300` | Per-event-type silence period for the webhook |
+| `event_sample_rate` | float | `1.0` | 0.0–1.0; high/critical events always pass through regardless of sampling |
+| `event_buffer_size` | int | `1000` | Capacity of the user-space event channel |
+| `pid_prune_interval` | duration | `5s` | How often the controller scans `trusted_pids` and removes entries whose process has exited. Tighter values close the PID-recycle TOCTOU window faster at the cost of more `/proc` scans; loosen on quiet workloads. |
 
 #### BPF Configuration
 
@@ -360,6 +373,6 @@ kubectl apply --context=cluster2 -f deploy/kubernetes/
 
 ## Support
 
-- **Documentation**: https://github.com/tonghuaroot/neurosentry/tree/main/docs
+- **Documentation**: see the `docs/` directory in the repo
 - **Issues**: https://github.com/tonghuaroot/neurosentry/issues
-- **Discussions**: https://github.com/tonghuaroot/neurosentry/discussions
+- **Security reports**: tonghuaroot@gmail.com (see [SECURITY.md](../SECURITY.md))

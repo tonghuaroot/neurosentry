@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security Vulnerability
-    url: https://github.com/neurosentry/neurosentry/security/policy
+    url: https://github.com/tonghuaroot/neurosentry/security/policy
     about: Please report security vulnerabilities via our security policy, not public issues.
   - name: Documentation
-    url: https://github.com/neurosentry/neurosentry/tree/main/docs
+    url: https://github.com/tonghuaroot/neurosentry/tree/main/docs
     about: Check our documentation for usage guides and troubleshooting.
   - name: Discussions
-    url: https://github.com/neurosentry/neurosentry/discussions
+    url: https://github.com/tonghuaroot/neurosentry/discussions
     about: Ask questions and discuss ideas in GitHub Discussions.

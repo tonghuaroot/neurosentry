@@ -53,7 +53,27 @@ typedef unsigned long long __u64;
 // Section attribute
 #define SEC(NAME) __attribute__((section(NAME), used))
 
-// BPF helper function declarations
+// Architecture-aware first-argument accessor for uprobe context.
+// Uprobes receive `struct pt_regs *` whose member layout differs per arch
+// (x86_64: `di`, arm64: `regs[0]`). Without this abstraction the .c file
+// hard-codes one architecture's field name and CO-RE relocation fails on
+// the other when libbpf tries to resolve the missing field at load time
+// (manifests as "bad CO-RE relocation: invalid func unknown#NNN" on the
+// non-matching kernel).
+#if defined(__TARGET_ARCH_arm64) || defined(__aarch64__)
+  #define PT_REGS_PARM1(ctx) ((ctx)->regs[0])
+#elif defined(__TARGET_ARCH_x86) || defined(__x86_64__)
+  #define PT_REGS_PARM1(ctx) ((ctx)->di)
+#else
+  #error "Define PT_REGS_PARM1 for this architecture"
+#endif
+
+// BPF helper function declarations.
+// NOTE: helper IDs are stable kernel ABI (enum bpf_func_id in include/uapi/linux/bpf.h).
+//   112 bpf_probe_read_user      113 bpf_probe_read_kernel
+//   114 bpf_probe_read_user_str  115 bpf_probe_read_kernel_str
+// The previous 113 here was wrong: it called probe_read_kernel on a user-space
+// pointer, which silently fails with -EFAULT on every uprobe invocation.
 static void *(*bpf_map_lookup_elem)(void *map, void *key) = (void *)1;
 static void *(*bpf_ringbuf_reserve)(void *map, unsigned long long size, unsigned long long flags) = (void *)131;
 static void (*bpf_ringbuf_submit)(void *data, unsigned long long flags) = (void *)132;
@@ -61,7 +81,7 @@ static long (*bpf_get_current_comm)(void *buf, unsigned long long size) = (void 
 static long (*bpf_get_current_pid_tgid)(void) = (void *)14;
 static long long (*bpf_ktime_get_ns)(void) = (void *)5;
 static long (*bpf_get_stack)(void *ctx, void *buf, unsigned long long size, unsigned long long flags) = (void *)67;
-static long (*bpf_probe_read_user_str)(void *dst, unsigned long long size, const void *unsafe_ptr) = (void *)113;
+static long (*bpf_probe_read_user_str)(void *dst, unsigned long long size, const void *unsafe_ptr) = (void *)114;
 
 // Map definition helper macros for BTF-style maps
 #define __uint(name, val) int (*name)[val]
@@ -129,10 +149,22 @@ struct {
 // Uprobe Program Implementation
 // ============================================================================
 
-// Helper function to check for dangerous symbols in stack trace
+// Stack-depth heuristic for the pickle uprobe.
+//
+// LIMITATION (v1.0): this is NOT a symbol-aware match. The
+// `dangerous_symbols` BPF map declared above is populated from YAML by
+// user-space but is not consulted here — see CHANGELOG "Known limitations"
+// for context. We capture a user-stack and flag the call as "potentially
+// suspicious" when the stack is deeper than 8 frames, which is a weak
+// signal at best.
+//
+// Real symbol-aware matching needs either (a) user-space symbolization on
+// the captured `ip[]` array followed by a lookup against `dangerous_symbols`
+// from the agent, or (b) attaching to higher-level Python frames
+// (PyEval / PyObject_Call) and reading the callable's qualname via
+// `bpf_probe_read_user_str`. Both are on the v1.1 list.
 static __always_inline int check_dangerous_stack(void *ctx)
 {
-    // Stack trace capture
     unsigned long long ip[MAX_STACK_DEPTH];
     __builtin_memset(ip, 0, sizeof(ip));
 
@@ -142,12 +174,9 @@ static __always_inline int check_dangerous_stack(void *ctx)
 
     if (nr_stack < 1) return 0;
 
-    // Simplified check - in production would do symbolization in user space
-    // For now, just check if we have a deep stack (potential indication of complex call chain)
     if (nr_stack > 8) {
-        return 1;  // Potentially suspicious
+        return 1;  // Heuristic: deep stack — emit an event for triage.
     }
-
     return 0;
 }
 
@@ -170,8 +199,8 @@ int uprobe_torch_load(struct pt_regs *ctx)
     // Get process name
     bpf_get_current_comm(&e->comm, sizeof(e->comm));
 
-    // Read filename argument (first argument in rdi/x0 depending on arch)
-    void *filename_ptr = (void *)(ctx->di);
+    // Read filename argument (first argument: rdi on x86_64, x0 on arm64)
+    void *filename_ptr = (void *)PT_REGS_PARM1(ctx);
     if (filename_ptr) {
         bpf_probe_read_user_str(e->model_path, sizeof(e->model_path), filename_ptr);
     }

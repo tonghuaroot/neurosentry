@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .title { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; fill: #7fb069; font-size: 52px; }
+      .subtitle { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 400; fill: #ffffff; font-size: 28px; }
+      .layer-label { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-weight: 700; font-size: 22px; fill: #8b949e; letter-spacing: 2px; }
+      .layer-sublabel { font-family: -apple-system, 'Helvetica Neue', sans-serif; font-size: 16px; fill: #8b949e; }
+      .box-title { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-weight: 700; font-size: 20px; fill: #ffffff; }
+      .box-sub { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #8b949e; }
+      .box-tag { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px; fill: #f85149; }
+      .conn-label { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #58a6ff; }
+      .kernel-label { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 13px; fill: #8b949e; }
+      .watermark { font-family: ui-monospace, 'SF Mono', Consolas, monospace; font-size: 14px; fill: #30363d; }
+      .layer-bg { fill: #161b22; stroke: #30363d; stroke-width: 2; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7fb069" />
+    </marker>
+    <marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b949e" />
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1920" height="1080" />
+
+  <!-- Title -->
+  <text class="title" x="80" y="80">NeuroSentry — kernel-level eBPF protection for AI model files</text>
+  <text class="subtitle" x="80" y="120">no application code changes  ·  Apache 2.0</text>
+
+  <!-- ===================== USER SPACE LAYER ===================== -->
+  <rect class="layer-bg" x="80" y="170" width="1500" height="200" rx="12" />
+  <text class="layer-label" x="100" y="200">USER SPACE  ·  GO AGENT</text>
+  <text class="layer-sublabel" x="100" y="222">orchestration, policy, telemetry</text>
+
+  <!-- Controller -->
+  <rect x="120" y="245" width="320" height="100" rx="8" fill="#0d1117" stroke="#7fb069" stroke-width="2.5" />
+  <text class="box-title" x="140" y="280">Controller</text>
+  <text class="box-sub" x="140" y="305">lifecycle · SIGHUP reload</text>
+  <text class="box-sub" x="140" y="325">atomic map repopulation</text>
+
+  <!-- Policy Engine -->
+  <rect x="460" y="245" width="320" height="100" rx="8" fill="#0d1117" stroke="#7fb069" stroke-width="2.5" />
+  <text class="box-title" x="480" y="280">Policy Engine</text>
+  <text class="box-sub" x="480" y="305">YAML rules · allow/block/alert</text>
+  <text class="box-sub" x="480" y="325">file · pickle · net · model_load</text>
+
+  <!-- Event Processor -->
+  <rect x="800" y="245" width="320" height="100" rx="8" fill="#0d1117" stroke="#7fb069" stroke-width="2.5" />
+  <text class="box-title" x="820" y="280">Event Processor</text>
+  <text class="box-sub" x="820" y="305">ringbuf reader · no CGO</text>
+  <text class="box-sub" x="820" y="325">sampling · severity passthrough</text>
+
+  <!-- Metrics Server -->
+  <rect x="1140" y="245" width="320" height="100" rx="8" fill="#0d1117" stroke="#7fb069" stroke-width="2.5" />
+  <text class="box-title" x="1160" y="280">Metrics Server  :2112</text>
+  <text class="box-sub" x="1160" y="305">events_total · threats_total</text>
+  <text class="box-sub" x="1160" y="325">bpf_errors · histograms</text>
+
+  <!-- Prometheus / Grafana sidecar -->
+  <rect x="1640" y="225" width="220" height="140" rx="12" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" stroke-dasharray="6 4" />
+  <text class="box-title" x="1660" y="260">Prometheus</text>
+  <text class="box-title" x="1660" y="285">+ Grafana</text>
+  <text class="box-sub" x="1660" y="315">scrape /metrics</text>
+  <text class="box-sub" x="1660" y="335">live dashboard</text>
+
+  <!-- Arrow metrics -> prom (label well above arrow; arrow ends just outside box border) -->
+  <line x1="1465" y1="295" x2="1635" y2="295" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+  <text class="conn-label" x="1500" y="278">scrape</text>
+
+  <!-- ===================== KERNEL SPACE LAYER (eBPF) ===================== -->
+  <rect class="layer-bg" x="80" y="490" width="1500" height="200" rx="12" />
+  <text class="layer-label" x="100" y="520">KERNEL SPACE  ·  eBPF PROGRAMS</text>
+  <text class="layer-sublabel" x="100" y="542">verified bytecode in kernel, no module load</text>
+
+  <!-- LSM file_open (highlighted green) -->
+  <rect x="120" y="565" width="320" height="110" rx="8" fill="#0d1117" stroke="#7fb069" stroke-width="3.5" />
+  <text class="box-title" x="140" y="600">LSM file_open</text>
+  <text class="box-sub" x="140" y="625">extension match + trusted_pids</text>
+  <text class="box-tag" x="140" y="655">blocks reads/writes  →  -EPERM</text>
+
+  <!-- TC ingress/egress -->
+  <rect x="460" y="565" width="320" height="110" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
+  <text class="box-title" x="480" y="600">TC ingress / egress</text>
+  <text class="box-sub" x="480" y="625">clsact qdisc · TCX (6.6+)</text>
+  <text class="box-sub" x="480" y="650">monitor: PID · dst IP · bytes</text>
+
+  <!-- XDP -->
+  <rect x="800" y="565" width="320" height="110" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
+  <text class="box-title" x="820" y="600">XDP</text>
+  <text class="box-sub" x="820" y="625">NIC driver / SKB-generic</text>
+  <text class="box-sub" x="820" y="650">~50 ns / packet · XDP_DROP</text>
+
+  <!-- Uprobes -->
+  <rect x="1140" y="565" width="320" height="110" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
+  <text class="box-title" x="1160" y="600">Uprobes</text>
+  <text class="box-sub" x="1160" y="625">torch::load · _pickle_*</text>
+  <text class="box-sub" x="1160" y="650">__reduce__ · TF · ONNX</text>
+
+  <!-- Ring buffer arrows kernel -> user space (terminate cleanly in the gap, not on box borders) -->
+  <line x1="280" y1="560" x2="280" y2="355" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="620" y1="560" x2="620" y2="355" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="960" y1="560" x2="960" y2="355" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+  <line x1="1300" y1="560" x2="1300" y2="355" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- Ringbuf label (positioned between arrows at x=620 and x=960) -->
+  <rect x="640" y="430" width="300" height="44" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="1.5" />
+  <text class="conn-label" x="660" y="458" fill="#ffffff">BPF_MAP_TYPE_RINGBUF  →  events</text>
+
+  <!-- ===================== KERNEL LAYER (VFS / network) ===================== -->
+  <rect class="layer-bg" x="80" y="800" width="1500" height="180" rx="12" />
+  <text class="layer-label" x="100" y="830">LINUX KERNEL  ·  VFS · NETWORK STACK · USDT</text>
+  <text class="layer-sublabel" x="100" y="852">syscall and packet sources that trigger the BPF programs above</text>
+
+  <!-- four kernel source boxes -->
+  <rect x="120" y="875" width="320" height="80" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2" />
+  <text class="box-title" x="140" y="908">VFS  ·  open() / openat()</text>
+  <text class="kernel-label" x="140" y="935">trigger: security_file_open</text>
+
+  <rect x="460" y="875" width="320" height="80" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2" />
+  <text class="box-title" x="480" y="908">netdev  ·  qdisc clsact</text>
+  <text class="kernel-label" x="480" y="935">trigger: skb (ingress + egress)</text>
+
+  <rect x="800" y="875" width="320" height="80" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2" />
+  <text class="box-title" x="820" y="908">NIC driver / SKB</text>
+  <text class="kernel-label" x="820" y="935">trigger: xdp_buff (pre-stack)</text>
+
+  <rect x="1140" y="875" width="320" height="80" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2" />
+  <text class="box-title" x="1160" y="908">user libs  ·  ELF symbols</text>
+  <text class="kernel-label" x="1160" y="935">trigger: usdt / symbol-attach</text>
+
+  <!-- arrows kernel -> bpf -->
+  <line x1="280" y1="875" x2="280" y2="675" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow-muted)" />
+  <line x1="620" y1="875" x2="620" y2="675" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow-muted)" />
+  <line x1="960" y1="875" x2="960" y2="675" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow-muted)" />
+  <line x1="1300" y1="875" x2="1300" y2="675" stroke="#8b949e" stroke-width="2" marker-end="url(#arrow-muted)" />
+
+  <!-- Side legend, bottom right area -->
+  <rect x="1640" y="490" width="220" height="200" rx="12" fill="#0d1117" stroke="#30363d" stroke-width="2" />
+  <text class="layer-label" x="1660" y="520">BPF MAPS</text>
+  <text class="box-sub" x="1660" y="550" fill="#ffffff">trusted_pids</text>
+  <text class="kernel-label" x="1660" y="568">HASH · 10240 entries</text>
+  <text class="box-sub" x="1660" y="595" fill="#ffffff">protected_extensions</text>
+  <text class="kernel-label" x="1660" y="613">HASH · 32 entries</text>
+  <text class="box-sub" x="1660" y="640" fill="#ffffff">config_map</text>
+  <text class="kernel-label" x="1660" y="658">ARRAY · enforce flag</text>
+  <text class="box-sub" x="1660" y="678" fill="#ffffff">events</text>
+
+  <!-- Watermark -->
+  <text class="watermark" x="1840" y="1050" text-anchor="end">github.com/tonghuaroot/neurosentry</text>
+</svg>

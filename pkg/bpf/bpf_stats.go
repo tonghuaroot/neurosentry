@@ -13,7 +13,7 @@ type StatisticsMapKey uint32
 type Stats struct {
 	TotalAccessAttempts uint64
 	BlockedAccess       uint64
-	ProtectedFilesSeen   uint64
+	ProtectedFilesSeen  uint64
 }
 
 // GetStats retrieves BPF statistics
@@ -31,7 +31,7 @@ func (m *Manager) GetStats() (*Stats, error) {
 	return &Stats{
 		TotalAccessAttempts: value.TotalAccessAttempts,
 		BlockedAccess:       value.BlockedAccess,
-		ProtectedFilesSeen:   value.AllowedAccess,
+		ProtectedFilesSeen:  value.AllowedAccess,
 	}, nil
 }
 

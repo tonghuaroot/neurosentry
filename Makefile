@@ -124,11 +124,11 @@ ebpf-remote:
 		exit 1; \
 	fi
 	@echo "Copying files to remote server $(NEUROSENTRY_SSH_HOST)..."
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_build"
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no -r pkg/bpf $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_build/bpf && chmod +x build_ebpf.sh && ./build_ebpf.sh"
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_build"
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new -r pkg/bpf $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_build/bpf && chmod +x build_ebpf.sh && ./build_ebpf.sh"
 	@echo "Copying compiled objects back..."
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no -r $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/bpf/build/*.o pkg/bpf/build/
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new -r $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/bpf/build/*.o pkg/bpf/build/
 	@echo "eBPF build complete!"
 
 # Test eBPF loading on remote server
@@ -146,8 +146,8 @@ ebpf-test:
 		exit 1; \
 	fi
 	@echo "Uploading test script and eBPF objects to $(NEUROSENTRY_SSH_HOST)..."
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_test/build"
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no pkg/bpf/test_ebpf_loading.sh $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no pkg/bpf/build/*.o $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/build/
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_test/build"
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new pkg/bpf/test_ebpf_loading.sh $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new pkg/bpf/build/*.o $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/build/
 	@echo "Running eBPF loading test..."
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_test && chmod +x test_ebpf_loading.sh && sudo ./test_ebpf_loading.sh"
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_test && chmod +x test_ebpf_loading.sh && sudo ./test_ebpf_loading.sh"
