@@ -12,11 +12,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/neurosentry/neurosentry/pkg/agent"
-	"github.com/neurosentry/neurosentry/pkg/bpf"
-	"github.com/neurosentry/neurosentry/pkg/config"
-	"github.com/neurosentry/neurosentry/pkg/policy"
 	"github.com/spf13/cobra"
+	"github.com/tonghuaroot/neurosentry/pkg/agent"
+	"github.com/tonghuaroot/neurosentry/pkg/bpf"
+	"github.com/tonghuaroot/neurosentry/pkg/config"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 var (

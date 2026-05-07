@@ -7,7 +7,7 @@
 package agent
 
 import (
-	"github.com/neurosentry/neurosentry/pkg/bpf"
+	"github.com/tonghuaroot/neurosentry/pkg/bpf"
 )
 
 // BPFMetricsCollector stub for non-Linux systems

@@ -9,9 +9,9 @@ import (
 	"log"
 	"sync"
 
-	bpfpkg "github.com/neurosentry/neurosentry/pkg/bpf"
-	"github.com/neurosentry/neurosentry/pkg/config"
-	"github.com/neurosentry/neurosentry/pkg/policy"
+	bpfpkg "github.com/tonghuaroot/neurosentry/pkg/bpf"
+	"github.com/tonghuaroot/neurosentry/pkg/config"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 // PolicyEngine evaluates events against security policies

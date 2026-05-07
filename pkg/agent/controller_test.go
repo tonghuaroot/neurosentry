@@ -6,8 +6,8 @@ package agent
 import (
 	"testing"
 
-	"github.com/neurosentry/neurosentry/pkg/config"
-	"github.com/neurosentry/neurosentry/pkg/policy"
+	"github.com/tonghuaroot/neurosentry/pkg/config"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 func TestNewController(t *testing.T) {

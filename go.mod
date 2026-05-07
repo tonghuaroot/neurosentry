@@ -1,4 +1,4 @@
-module github.com/neurosentry/neurosentry
+module github.com/tonghuaroot/neurosentry
 
 go 1.24.0
 

@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf/ringbuf"
-	"github.com/neurosentry/neurosentry/pkg/bpf"
-	"github.com/neurosentry/neurosentry/pkg/config"
-	"github.com/neurosentry/neurosentry/pkg/policy"
+	"github.com/tonghuaroot/neurosentry/pkg/bpf"
+	"github.com/tonghuaroot/neurosentry/pkg/config"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 // Controller manages the NeuroSentry agent lifecycle

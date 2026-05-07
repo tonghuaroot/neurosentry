@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/neurosentry/neurosentry/pkg/policy"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 // BenchmarkPolicyEvaluate benchmarks policy evaluation performance

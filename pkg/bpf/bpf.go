@@ -21,8 +21,8 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/neurosentry/neurosentry/pkg/config"
-	"github.com/neurosentry/neurosentry/pkg/policy"
+	"github.com/tonghuaroot/neurosentry/pkg/config"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -cc clang -cflags "-O2 -g -Wall -Wno-visibility -I./headers" -tags linux NeuroSentryLSM ./neurosentry_lsm.c

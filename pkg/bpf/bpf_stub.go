@@ -10,8 +10,9 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/neurosentry/neurosentry/pkg/config"
-	"github.com/neurosentry/neurosentry/pkg/policy"
+	"github.com/cilium/ebpf"
+	"github.com/tonghuaroot/neurosentry/pkg/config"
+	"github.com/tonghuaroot/neurosentry/pkg/policy"
 )
 
 // Stub types for non-Linux platforms
@@ -110,6 +111,12 @@ func (m *Manager) AddDangerousSymbol(_ string) error {
 
 // Close is a no-op on non-Linux platforms
 func (m *Manager) Close() {}
+
+// EventsMap returns nil on non-Linux platforms (no LSM ringbuf to read from).
+func (m *Manager) EventsMap() *ebpf.Map { return nil }
+
+// PruneDeadTrustedPIDs is a no-op on non-Linux platforms.
+func (m *Manager) PruneDeadTrustedPIDs() (int, error) { return 0, nil }
 
 // ClearMaps is a no-op on non-Linux platforms
 func (m *Manager) ClearMaps() error {
