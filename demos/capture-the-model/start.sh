@@ -49,12 +49,9 @@ if [ "$EUID" -ne 0 ]; then
     echo ""
 fi
 
-# Create necessary directories. `model-data/` is the host-side bind path that
-# both the agent (read-only) and the scoring server mount as the protected
-# model store; see docker-compose.yml. Created here so the bind is non-empty
-# at compose-up time even if generation is skipped.
+# Create necessary directories
 echo "[+] Setting up directories..."
-mkdir -p workspace logs scoring/data config/grafana/dashboards config/grafana/datasources model-data
+mkdir -p workspace logs scoring/data config/grafana/dashboards config/grafana/datasources
 
 # Check if NeuroSentry image exists, if not build it
 if ! docker images neurosentry:ctf-latest -q | grep -q .; then
@@ -78,24 +75,9 @@ fi
 echo "[+] Starting challenge environment..."
 $DC up -d
 
-# Wait for services to be ready. Replaces a previous bare `sleep 5` which
-# raced container init under booth-cold-start conditions and left the first
-# visitor with connection-refused on :8080.
-echo "[+] Waiting for services to be healthy..."
-ready=0
-for i in $(seq 1 60); do
-    if curl -sfm 2 http://localhost:8080/health >/dev/null 2>&1 \
-       && curl -sfm 2 http://localhost:2112/health >/dev/null 2>&1; then
-        echo "[+] Scoring server (:8080) and agent metrics (:2112) are up."
-        ready=1
-        break
-    fi
-    sleep 1
-done
-if [ "$ready" != "1" ]; then
-    echo "[!] Services did not come up within 60s. Check 'docker logs scoring' and 'docker logs neurosentry'."
-    exit 1
-fi
+# Wait for services to be ready
+echo "[+] Waiting for services to initialize..."
+sleep 5
 
 # Check status
 echo ""

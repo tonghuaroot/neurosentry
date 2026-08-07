@@ -57,15 +57,8 @@ coverage/
 .ralph/
 node_modules/
 
-# Demo lab — generated 13 GB sparse model file produced by start.sh
+# Local recording artifacts (BH EU Arsenal demo prep)
 demos/capture-the-model/scoring/model-data/
-demos/capture-the-model/model-data/
-# Demo lab — scoring-server runtime state (sqlite leaderboard, attempts log)
-demos/capture-the-model/scoring/data/
-
-# Local recording artifacts and private prep notes
-demos/record/
-defcon_demo_labs_outline.txt
 
 # Built binary (don't commit; produced by `make build`)
 /neurosentry

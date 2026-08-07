@@ -1,16 +1,29 @@
 # NeuroSentry End-to-End Testing Results
 
-**Environment**: AWS EC2 (Ubuntu 24.04, Kernel 6.14)
-**Mode**: Monitor-only (`enforce_mode: false`)
+> ℹ️ This is a **results log**, not a how-to. For running and writing tests see
+> the canonical [testing.md](testing.md).
 
-> **What this run shows.** The figures below come from a monitor-only
-> deployment and demonstrate that the agent attaches its eBPF programs,
-> reads events from kernel ring buffers, and ships metrics at scale
-> without verifier errors or crashes. They do not measure the LSM
-> `-EPERM` enforcement path; that path was verified on Linux 6.8
-> aarch64 separately and is documented in `CHANGELOG.md`. Read the
-> headline figures here as **agent stability and observability under
-> attack-like load**.
+
+**Test Date**: 2026-02-11 (monitor-only baseline; see note below)
+**Environment**: AWS EC2 (Ubuntu 24.04, Kernel 6.14)
+**NeuroSentry Version**: pre-1.0 dev build
+
+> **Important context for readers (added 2026-05-07).** The numbers in this
+> document are from a **monitor-only** run (`enforce_mode: false`, see config
+> below). They demonstrate that the agent attaches its eBPF programs, reads
+> events from kernel ring buffers, and ships metrics — at scale — without
+> verifier errors or crashes. They do **not** demonstrate the LSM `-EPERM`
+> blocking path that ships in the 1.0 release; that path was instrumented and
+> verified separately on Colima (Ubuntu 24.04 / kernel 6.8 aarch64) during
+> the 1.0 cut and is documented in `CHANGELOG.md` (the `BPF_PROG` and uprobe
+> CO-RE bugs were found and fixed during that work — both pre-dated this
+> document, so any claim of "blocking" attributable to this run is
+> coincidental AppArmor behavior, not the BPF LSM hook).
+>
+> A re-run on EC2 with the post-fix code in `enforce_mode: true` is on the
+> v1.1 punch list. The headline figures below should be read as **agent
+> stability + observability under attack-like load**, not as enforcement
+> efficacy.
 
 ## Test Environment
 
@@ -184,16 +197,19 @@ find /tmp -name "*.safetensors" -o -name "*.pth" -o -name "*.gguf" -o -name "*.p
 
 Sample metric values after the attack-simulation phase are shown in the
 Headline Figures table above (`neurosentry_lsm_access_attempts_total: 55,562`
-etc.).
+etc.). A screenshot capture of the post-attack Grafana panel is on the v1.1
+documentation punch list.
 
 > **Note**: To view live dashboards on a deployment of your own, port-forward
 > Grafana (`:3000`) and Prometheus (`:9090`) from the test host with
 > `ssh -L 3000:localhost:3000 -L 9090:localhost:9090 your-user@your-host`,
-> then open <http://localhost:3000>. Reproduce on any Linux host meeting
-> the requirements listed in [`docs/user-guide.md`](user-guide.md):
-> kernel 5.10+ with `CONFIG_BPF_LSM=y` and `bpf` in the active LSM stack.
+> then open <http://localhost:3000>. The original test host is no longer
+> live; reproduce on any cloud VM with the requirements in §7 of
+> [`ARSENAL_SUBMISSION.md`](../ARSENAL_SUBMISSION.md).
 
 ## OS Compatibility Testing
+
+**Test Date**: 2026-02-14
 
 NeuroSentry was tested for binary compatibility across multiple Linux distributions using Docker containers. The binary was compiled once on Ubuntu 24.04 and deployed to different OS containers.
 

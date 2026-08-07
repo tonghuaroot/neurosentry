@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build linux
-// +build linux
 
 package integration
 
@@ -13,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tonghuaroot/neurosentry/pkg/bpf"
-	"github.com/tonghuaroot/neurosentry/pkg/config"
-	"github.com/tonghuaroot/neurosentry/pkg/policy"
+	"github.com/neurosentry/neurosentry/pkg/bpf"
+	"github.com/neurosentry/neurosentry/pkg/config"
+	"github.com/neurosentry/neurosentry/pkg/policy"
 )
 
 // TestE2ELSMFileProtection tests the complete LSM file protection flow

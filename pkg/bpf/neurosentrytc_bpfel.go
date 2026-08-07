@@ -74,6 +74,7 @@ type NeuroSentryTCProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type NeuroSentryTCMapSpecs struct {
 	BlockedIps   *ebpf.MapSpec `ebpf:"blocked_ips"`
+	NsTcCfg      *ebpf.MapSpec `ebpf:"ns_tc_cfg"`
 	NsTcStatsMap *ebpf.MapSpec `ebpf:"ns_tc_stats_map"`
 	TcEvents     *ebpf.MapSpec `ebpf:"tc_events"`
 }
@@ -105,6 +106,7 @@ func (o *NeuroSentryTCObjects) Close() error {
 // It can be passed to LoadNeuroSentryTCObjects or ebpf.CollectionSpec.LoadAndAssign.
 type NeuroSentryTCMaps struct {
 	BlockedIps   *ebpf.Map `ebpf:"blocked_ips"`
+	NsTcCfg      *ebpf.Map `ebpf:"ns_tc_cfg"`
 	NsTcStatsMap *ebpf.Map `ebpf:"ns_tc_stats_map"`
 	TcEvents     *ebpf.Map `ebpf:"tc_events"`
 }
@@ -112,6 +114,7 @@ type NeuroSentryTCMaps struct {
 func (m *NeuroSentryTCMaps) Close() error {
 	return _NeuroSentryTCClose(
 		m.BlockedIps,
+		m.NsTcCfg,
 		m.NsTcStatsMap,
 		m.TcEvents,
 	)

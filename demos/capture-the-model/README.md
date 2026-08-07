@@ -55,23 +55,13 @@ matches `config/neurosentry.yaml`:
 | Layer | Hook | Mode in this demo | Effect |
 |-------|------|-------------------|--------|
 | LSM | `lsm/file_open` | **ENFORCE** | Returns `-EPERM` for protected extensions opened by untrusted PIDs |
+| LSM | `lsm/file_permission` | Monitor | Logs read attempts on already-open fds |
 | TC  | `tc/clsact` ingress + egress | Monitor-only | Logs egress flows; does not drop |
 | XDP | `xdp/generic` | Monitor-only | Per-packet stats only |
-| Uprobe | libpython `_pickle` | Observe-only | Emits an event on pickle module activity; symbol-aware matching is roadmap (see Known Limitations) |
-| Uprobe | libtorch | Observe-only | Emits an event on `torch::load()` |
-
-> **What is NOT enforced in v1.0:** `lsm/file_permission` and `lsm/mmap_file`
-> hooks are present in source but not currently attached (verifier work in
-> progress); a process that already holds an open fd, or that loads via
-> `mmap`, is not blocked by the LSM layer in v1.0.
+| Uprobe | PyTorch / pickle / TF / ONNX | Observe + alert | Flags `__reduce__` to dangerous symbols |
 
 Protected extensions (from `config/neurosentry.yaml`):
-`.safetensors`, `.gguf`, `.pth`, `.pt`, `.onnx`, `.h5`
-
-> `.pkl` and `.bin` are **not** in the LSM extension list. `.pkl` is intended
-> to be covered by the pickle uprobes; `.bin` is intentionally omitted to
-> avoid false positives on common binary files (firmware images, container
-> blobs, etc.).
+`.safetensors`, `.gguf`, `.pth`, `.pt`, `.pkl`, `.bin`
 
 Protected paths: `/models`, `/target`
 

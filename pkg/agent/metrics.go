@@ -138,11 +138,11 @@ func (m *MetricsCollector) TotalThreats() int64 {
 }
 
 // Snapshot returns a snapshot of current metrics
-func (m *MetricsCollector) Snapshot() map[string]interface{} {
+func (m *MetricsCollector) Snapshot() map[string]any {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"events_processed": m.eventCount,
 		"threats_detected": m.threatCount,
 		"last_event_time":  m.lastEvent,
@@ -340,11 +340,11 @@ func (a *AlertManager) SendAlert(event Event) error {
 
 // sendWebhookAsync sends the webhook asynchronously
 func (a *AlertManager) sendWebhookAsync(event Event) {
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"type":      event.Type,
 		"timestamp": event.Timestamp.Format(time.RFC3339),
 		"severity":  event.Severity,
-		"source": map[string]interface{}{
+		"source": map[string]any{
 			"pid":  event.Source.PID,
 			"uid":  event.Source.UID,
 			"comm": event.Source.Comm,

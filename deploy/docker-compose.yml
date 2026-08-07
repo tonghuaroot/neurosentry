@@ -1,0 +1,100 @@
+# NeuroSentry full observability stack.
+#
+# One-click deploy: NeuroSentry + a production Postgres (durable audit store)
+# + Prometheus + Grafana with dashboards pre-provisioned. NeuroSentry runs
+# privileged with host PID/network so the eBPF layer can attach on the host
+# kernel; on a non-Linux host it degrades to the user-space layers (run the
+# binary with --skip-bpf there).
+#
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   open http://localhost:3000   (Grafana, admin/neurosentry)
+#   open http://localhost:8080   (NeuroSentry console)
+#
+# Because NeuroSentry uses host networking (for eBPF), it cannot resolve the
+# `postgres` service over Docker's bridge DNS. Postgres therefore publishes
+# 5432 on the host, and neurosentry pins `postgres -> 127.0.0.1` via
+# extra_hosts so the DSN `postgres://...@postgres:5432/...` resolves unchanged.
+
+services:
+  neurosentry:
+    build:
+      context: ..
+      dockerfile: deploy/docker/Dockerfile
+    image: neurosentry:latest
+    container_name: neurosentry
+    restart: unless-stopped
+    privileged: true
+    pid: "host"
+    network_mode: "host"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Host networking bypasses Docker DNS; map the Postgres service name to the
+    # loopback address where its published port is reachable.
+    extra_hosts:
+      - "postgres:127.0.0.1"
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+      - ./neurosentry-compose.yaml:/etc/neurosentry/config.yaml:ro
+      - ns-data:/var/lib/neurosentry
+      - ns-logs:/var/log/neurosentry
+    # Metrics on :2112, console on :8080, gateway on :8081 (host network).
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: neurosentry-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: neurosentry
+      POSTGRES_PASSWORD: neurosentry
+      POSTGRES_DB: neurosentry
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      # Published so the host-networked neurosentry container can reach it via
+      # 127.0.0.1:5432 (see extra_hosts above).
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neurosentry -d neurosentry"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: neurosentry-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prom-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: neurosentry-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: neurosentry
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  ns-data:
+  ns-logs:
+  pg-data:
+  prom-data:
+  grafana-data:

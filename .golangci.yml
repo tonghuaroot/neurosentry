@@ -1,50 +1,64 @@
-# golangci-lint configuration for NeuroSentry
-# Compatible with golangci-lint v1.64.x
-
+version: "2"
 run:
-  timeout: 5m
-
+  # Target the language version from the go directive (1.25), not the toolchain
+  # (1.26.5). Release golangci-lint binaries are built with go1.25 and refuse to
+  # run when the *target* is newer, so pin the target to the language version.
+  go: "1.25"
 linters:
   enable:
-    # Core linters
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    # Security linters
-    - gosec
-    # Code quality linters
-    - unconvert
     - exhaustive
-
-linters-settings:
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
-      - shadow
-
-  gosec:
-    excludes:
-      - G104  # Audit errors not checked (we handle this with errcheck)
-
-  staticcheck:
-    checks:
-      - all
-      - -ST1000  # Package comment style
-      - -ST1003  # Underscore in package name
-
-  exhaustive:
-    default-signifies-exhaustive: true
-
-issues:
-  exclude-dirs:
-    - pkg/bpf
-  exclude-files:
-    - ".*_bpfel\\.go$"
-  exclude-rules:
-    # Exclude generated files
-    - path: "_bpfel\\.go$"
-      linters:
+    - gosec
+    - unconvert
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    gosec:
+      excludes:
+        - G104
+    govet:
+      disable:
+        - fieldalignment
+        - shadow
+      enable-all: true
+    staticcheck:
+      checks:
         - all
+        - -ST1000 # Package comment style
+        - -ST1003 # Underscore in package name
+        - -QF1002 # Advisory: convert untagged switch to tagged (refactor-only)
+        - -QF1003 # Advisory: convert if/else to tagged switch (refactor-only)
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - all
+        path: _bpfel\.go$
+      # Test code intentionally ignores errors (setup helpers, best-effort
+      # writes) and trips security heuristics on fixtures — lint production
+      # code strictly, tests pragmatically.
+      - linters:
+          - errcheck
+          - gosec
+        path: _test\.go$
+      # Benchmark/dev tools are not shipped in the agent binary.
+      - linters:
+          - gosec
+        path: ^bench/
+    paths:
+      - .*_bpfel\.go$
+      - pkg/bpf
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

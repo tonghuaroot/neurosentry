@@ -1,7 +1,7 @@
 # NeuroSentry Makefile
 # Used for building the project
 
-.PHONY: all build clean test docker-build docker-run
+.PHONY: all build clean test docker-build docker-run sbom compose-up compose-down compose-logs
 
 # Variables
 BINARY_NAME=neurosentry
@@ -30,6 +30,16 @@ generate:
 	@echo "Generating eBPF code..."
 	@cd pkg/bpf && go generate ./...
 
+# Generate a CycloneDX software bill of materials (supply-chain provenance).
+# The agent runs privileged eBPF, so customers scrutinize its dependencies;
+# ship an SBOM with every release.
+sbom:
+	@echo "Generating SBOM (CycloneDX)..."
+	@mkdir -p $(BIN_DIR)
+	@command -v cyclonedx-gomod >/dev/null 2>&1 || go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+	cyclonedx-gomod app -json -main cmd/neurosentry -licenses -output $(BIN_DIR)/neurosentry.cdx.json .
+	@echo "Wrote $(BIN_DIR)/neurosentry.cdx.json"
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning..."
@@ -42,7 +52,13 @@ clean:
 # Run tests
 test:
 	@echo "Running tests..."
-	go test -v ./pkg/...
+	go test -v ./pkg/... ./tests/...
+
+# Run tests with coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test -coverprofile=coverage.out ./pkg/... ./tests/...
+	go tool cover -func=coverage.out | tail -1
 
 # Build Docker image
 docker-build:
@@ -62,6 +78,20 @@ docker-run:
 		-v $(PWD)/deploy/neurosentry.yaml:/etc/neurosentry/config.yaml \
 		neurosentry:latest
 
+# One-click full stack via Docker Compose (NeuroSentry + Postgres + Prometheus + Grafana)
+COMPOSE_FILE=deploy/docker-compose.yml
+
+compose-up:
+	@echo "Bringing up the NeuroSentry stack (with production Postgres)..."
+	docker compose -f $(COMPOSE_FILE) up -d --build
+
+compose-down:
+	@echo "Tearing down the NeuroSentry stack..."
+	docker compose -f $(COMPOSE_FILE) down
+
+compose-logs:
+	docker compose -f $(COMPOSE_FILE) logs -f
+
 # Development environment
 dev:
 	@echo "Starting development environment..."
@@ -74,6 +104,11 @@ fmt:
 # Run linter
 lint:
 	golangci-lint run ./...
+
+# Scan dependencies + reachable code for known vulnerabilities (CVEs).
+vuln:
+	@command -v govulncheck >/dev/null 2>&1 || go install golang.org/x/vuln/cmd/govulncheck@latest
+	govulncheck ./...
 
 # Install dependencies
 deps:
@@ -124,11 +159,11 @@ ebpf-remote:
 		exit 1; \
 	fi
 	@echo "Copying files to remote server $(NEUROSENTRY_SSH_HOST)..."
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_build"
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new -r pkg/bpf $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_build/bpf && chmod +x build_ebpf.sh && ./build_ebpf.sh"
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_build"
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no -r pkg/bpf $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_build/bpf && chmod +x build_ebpf.sh && ./build_ebpf.sh"
 	@echo "Copying compiled objects back..."
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new -r $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/bpf/build/*.o pkg/bpf/build/
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no -r $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_build/bpf/build/*.o pkg/bpf/build/
 	@echo "eBPF build complete!"
 
 # Test eBPF loading on remote server
@@ -146,8 +181,8 @@ ebpf-test:
 		exit 1; \
 	fi
 	@echo "Uploading test script and eBPF objects to $(NEUROSENTRY_SSH_HOST)..."
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_test/build"
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new pkg/bpf/test_ebpf_loading.sh $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/
-	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new pkg/bpf/build/*.o $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/build/
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "mkdir -p /tmp/neurosentry_test/build"
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no pkg/bpf/test_ebpf_loading.sh $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/
+	@scp -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no pkg/bpf/build/*.o $(NEUROSENTRY_SSH_HOST):/tmp/neurosentry_test/build/
 	@echo "Running eBPF loading test..."
-	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=accept-new $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_test && chmod +x test_ebpf_loading.sh && sudo ./test_ebpf_loading.sh"
+	@ssh -i "$$NEUROSENTRY_SSH_KEY" -o StrictHostKeyChecking=no $(NEUROSENTRY_SSH_HOST) "cd /tmp/neurosentry_test && chmod +x test_ebpf_loading.sh && sudo ./test_ebpf_loading.sh"

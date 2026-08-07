@@ -73,5 +73,50 @@ bpf:
   per_cpu_map_size: 1024
   disable_core: false
 
+# Landlock Sandbox
+sandbox:
+  enabled: false              # Enable Landlock process sandboxing (Linux 5.13+)
+  read_only_paths:
+    - /models
+    - /usr/lib
+    - /usr/local/lib
+  read_write_paths:
+    - /tmp
+    - /var/log/neurosentry
+  deny_paths:
+    - /root/.ssh
+    - /etc/shadow
+
+# MCP Protocol Interception
+mcp:
+  enabled: false              # Enable MCP tool-call visibility
+  listen_addr: "127.0.0.1:8081"
+  log_tool_calls: true
+  allowed_tools: []           # Empty = allow all (use blocklist instead)
+  blocked_tools:
+    - exec_command
+    - write_file
+    - delete_file
+
+# Tamper-proof Audit Logging
+audit:
+  enabled: true
+  log_path: /var/log/neurosentry/audit.jsonl
+  max_size_mb: 100
+
+# Web Dashboard
+web:
+  enabled: true
+  listen_addr: ":8080"
+
+# Multi-tenant control plane (identity, RBAC)
+platform:
+  enabled: true
+  snapshot_path: /var/lib/neurosentry/control-plane.json
+  bootstrap_tenant: default
+  bootstrap_email: admin@neurosentry.local
+  # bootstrap_password: leave empty to auto-generate and log once on first boot
+  # jwt_secret: set a stable secret to keep sessions across restarts
+
 # Policy File Path
 policy_path: /etc/neurosentry/policy.yaml

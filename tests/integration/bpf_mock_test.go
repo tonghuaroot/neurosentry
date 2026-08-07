@@ -2,15 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !linux || !root_test
-// +build !linux !root_test
 
 package integration
 
 import (
 	"testing"
 
-	"github.com/tonghuaroot/neurosentry/pkg/config"
-	"github.com/tonghuaroot/neurosentry/pkg/policy"
+	"github.com/neurosentry/neurosentry/pkg/config"
+	"github.com/neurosentry/neurosentry/pkg/policy"
 )
 
 // TestMockBPFManager tests BPF manager functionality without requiring root/Linux
