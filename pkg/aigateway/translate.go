@@ -81,7 +81,7 @@ func (t *AnthropicTranslator) TranslateRequest(openAIBody []byte) ([]byte, error
 			systemParts = append(systemParts, m.Content)
 			continue
 		}
-		msgs = append(msgs, anthropicMessage{Role: m.Role, Content: m.Content})
+		msgs = append(msgs, anthropicMessage(m))
 	}
 
 	maxTok := t.DefaultMaxTokens

@@ -128,7 +128,7 @@ func (u *HTTPUpstream) Forward(ctx context.Context, provider string, body []byte
 		req.Header.Set(k, v)
 	}
 
-	resp, err := u.client.Do(req)
+	resp, err := u.client.Do(req) //nolint:gosec // G704: upstream URL comes from the provider allowlist/config, not user input
 	if err != nil {
 		return 0, nil, nil, err
 	}

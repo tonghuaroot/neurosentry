@@ -261,7 +261,7 @@ func (r *Rule) matchFileAccessStruct(event any) bool {
 	// Use reflection to extract fields
 	// This handles the agent.Event struct type
 	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
@@ -315,7 +315,7 @@ func (r *Rule) matchPickleDangerous(event any) bool {
 
 	// Struct-based check
 	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
@@ -365,7 +365,7 @@ func (r *Rule) matchNetworkEgress(event any) bool {
 // matchNetworkEgressStruct handles struct-based network events
 func (r *Rule) matchNetworkEgressStruct(event any) bool {
 	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
@@ -393,7 +393,7 @@ func (r *Rule) matchModelLoad(event any) bool {
 	}
 
 	v := reflect.ValueOf(event)
-	if v.Kind() == reflect.Ptr {
+	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {

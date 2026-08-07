@@ -295,7 +295,7 @@ func (c *Controller) handleCorrelationFinding(f correlate.Finding) {
 	entry.SetCategory(audit.CategorySecurity, audit.ClassFinding)
 	if err := c.auditChain.Append(entry); err == nil {
 		if c.auditStore != nil {
-			c.auditStore.Write(entry)
+			_ = c.auditStore.Write(entry)
 		}
 		if c.webServer != nil {
 			data, _ := json.Marshal(entry)
@@ -320,7 +320,7 @@ func (c *Controller) handleCorrelationFinding(f correlate.Finding) {
 			brk.SetCategory(audit.CategorySecurity, audit.ClassFinding)
 			if err := c.auditChain.Append(brk); err == nil {
 				if c.auditStore != nil {
-					c.auditStore.Write(brk)
+					_ = c.auditStore.Write(brk)
 				}
 				if c.webServer != nil {
 					data, _ := json.Marshal(brk)
@@ -795,7 +795,7 @@ func (c *Controller) startFleetMTLS() {
 	if addr == "" {
 		addr = ":9443"
 	}
-	srv := &http.Server{Addr: addr, Handler: c.webServer.FleetAgentHandler(), TLSConfig: tlsCfg}
+	srv := &http.Server{Addr: addr, Handler: c.webServer.FleetAgentHandler(), TLSConfig: tlsCfg, ReadHeaderTimeout: 10 * time.Second}
 	c.fleetMTLS = srv
 	go func() {
 		log.Printf("fleet: mutual-TLS agent listener on %s (client cert required; CA=%s)", addr, filepath.Join(dir, "ca.crt"))

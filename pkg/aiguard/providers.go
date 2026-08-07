@@ -66,9 +66,7 @@ type Catalog struct {
 // NewCatalog builds the classifier from the built-in provider set.
 func NewCatalog() *Catalog {
 	c := &Catalog{byDomain: make(map[string]*AIProvider)}
-	for i := range catalog {
-		c.providers = append(c.providers, catalog[i])
-	}
+	c.providers = append(c.providers, catalog...)
 	c.reindex()
 	return c
 }

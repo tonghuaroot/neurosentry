@@ -81,6 +81,9 @@ func (p *Profile) Apply() error {
 		case AccessReadWrite:
 			allowedAccess = landlockAccessFSReadFile | landlockAccessFSReadDir |
 				landlockAccessFSWriteFile | landlockAccessFSMakeDir
+		case AccessDeny:
+			// Filtered out above (continue); listed for exhaustiveness.
+			continue
 		}
 
 		pathFd, err := unix.Open(r.Path, unix.O_PATH|unix.O_CLOEXEC, 0)
@@ -91,7 +94,7 @@ func (p *Profile) Apply() error {
 
 		pathAttr := unix.LandlockPathBeneathAttr{
 			Allowed_access: allowedAccess,
-			Parent_fd:      int32(pathFd),
+			Parent_fd:      int32(pathFd), //nolint:gosec // G115: file descriptors are small non-negative ints
 		}
 		err = landlockAddRule(rulesetFd, &pathAttr)
 		unix.Close(pathFd)

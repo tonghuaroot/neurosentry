@@ -252,7 +252,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 	}
 	w.WriteHeader(status)
-	_, _ = w.Write(respBody)
+	_, _ = w.Write(respBody) //nolint:gosec // G705: relays the upstream provider's JSON response verbatim; this is an API endpoint, not HTML
 }
 
 // routeProvider maps a model name to a provider. Known prefixes route directly;

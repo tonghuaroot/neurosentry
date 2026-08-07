@@ -17,8 +17,8 @@ import (
 type SecretType string
 
 const (
-	SecretOpenAIKey    SecretType = "openai_api_key"
-	SecretAnthropicKey SecretType = "anthropic_api_key"
+	SecretOpenAIKey    SecretType = "openai_api_key"    //nolint:gosec // G101: DLP finding-type label, not a credential
+	SecretAnthropicKey SecretType = "anthropic_api_key" //nolint:gosec // G101: DLP finding-type label, not a credential
 	SecretAWSKey       SecretType = "aws_access_key"
 	SecretGitHubToken  SecretType = "github_token"
 	SecretSlackToken   SecretType = "slack_token"

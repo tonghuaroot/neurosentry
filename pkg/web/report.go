@@ -68,7 +68,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 	rep := s.buildReport()
 	if strings.ToLower(r.URL.Query().Get("format")) == "html" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(renderReportHTML(rep)))
+		_, _ = w.Write([]byte(renderReportHTML(rep)))
 		return
 	}
 	writeJSON(w, rep)
@@ -249,7 +249,7 @@ th,td{text-align:left;padding:7px 10px;border-bottom:1px solid #eef0f4}th{color:
 		color = "#c0392b"
 	}
 	b.WriteString(`<div class="score"><div class="badge" style="background:` + color + `">` + esc(rep.PostureGrade) + `</div>`)
-	b.WriteString(fmt.Sprintf(`<div><div style="font-size:30px;font-weight:700">%d<span style="font-size:16px;color:#7a828f">/100</span></div><div class="sub" style="margin:0">Overall posture score</div></div></div>`, rep.PostureScore))
+	fmt.Fprintf(&b, `<div><div style="font-size:30px;font-weight:700">%d<span style="font-size:16px;color:#7a828f">/100</span></div><div class="sub" style="margin:0">Overall posture score</div></div></div>`, rep.PostureScore)
 
 	b.WriteString(`<h2>Coverage &amp; Activity</h2><div class="kpis">`)
 	b.WriteString(kpi(rep.Detections.Enabled, "Detections enabled"))

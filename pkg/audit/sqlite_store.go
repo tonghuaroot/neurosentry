@@ -250,7 +250,7 @@ func (s *dbStore) Write(e *Entry) error {
 	// seq stored as int64 (BIGINT/INTEGER) — driver-agnostic and safe for the
 	// monotonically increasing sequence numbers we emit.
 	_, err := s.db.Exec(s.rebind(q),
-		int64(e.SequenceNum), e.ID, e.Timestamp.UnixNano(), e.EventType, string(e.Severity),
+		int64(e.SequenceNum), e.ID, e.Timestamp.UnixNano(), e.EventType, string(e.Severity), //nolint:gosec // G115: audit sequence numbers never approach int64 max
 		e.SeverityID, pid, comm, detailsJSON, e.PrevHash, e.Hash,
 	)
 	if err != nil {
@@ -273,7 +273,7 @@ func (s *dbStore) LastSeqHash() (uint64, string, bool, error) {
 		}
 		return 0, "", false, err
 	}
-	return uint64(seq), hash, true, nil
+	return uint64(seq), hash, true, nil //nolint:gosec // G115: seq is a non-negative monotonic counter
 }
 
 // QueryFilter narrows a durable query. Zero fields match all.
@@ -389,7 +389,7 @@ func scanEntry(rows *sql.Rows) (*Entry, error) {
 		&e.SeverityID, &pid, &comm, &detailsJSON, &e.PrevHash, &e.Hash); err != nil {
 		return nil, err
 	}
-	e.SequenceNum = uint64(seq)
+	e.SequenceNum = uint64(seq) //nolint:gosec // G115: seq is a non-negative monotonic counter
 	e.Timestamp = time.Unix(0, tsNano)
 	if detailsJSON != "" {
 		_ = json.Unmarshal([]byte(detailsJSON), &e.Details)

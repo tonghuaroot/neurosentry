@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !linux || !root_test
-// +build !linux !root_test
 
 package integration
 
@@ -19,11 +18,11 @@ func TestMockBPFManager(t *testing.T) {
 	cfg := &config.Config{
 		Protection: config.ProtectionConfig{
 			ModelFIM: config.ModelFIMConfig{
-				Enabled:              true,
-				EnforceMode:          true,
-				LogAllAccess:         true,
-				ProtectedExtensions:  []string{".safetensors", ".gguf"},
-				ProtectedPaths:       []string{"/models", "/target"},
+				Enabled:             true,
+				EnforceMode:         true,
+				LogAllAccess:        true,
+				ProtectedExtensions: []string{".safetensors", ".gguf"},
+				ProtectedPaths:      []string{"/models", "/target"},
 			},
 			NetworkContainment: config.NetworkContainmentConfig{
 				Enabled:           true,
@@ -82,8 +81,8 @@ func TestConfigValidation(t *testing.T) {
 			cfg: &config.Config{
 				Protection: config.ProtectionConfig{
 					ModelFIM: config.ModelFIMConfig{
-						Enabled:              true,
-						ProtectedExtensions:  []string{".safetensors"},
+						Enabled:             true,
+						ProtectedExtensions: []string{".safetensors"},
 					},
 				},
 			},

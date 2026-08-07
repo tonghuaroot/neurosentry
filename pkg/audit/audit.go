@@ -5,6 +5,7 @@ package audit
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -89,7 +90,7 @@ func (e *Entry) SetCategory(category, class int) {
 
 func generateID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
@@ -97,14 +98,7 @@ func computeHash(e *Entry) string {
 	h := sha256.New()
 	h.Write([]byte(e.ID))
 	seq := make([]byte, 8)
-	seq[0] = byte(e.SequenceNum >> 56)
-	seq[1] = byte(e.SequenceNum >> 48)
-	seq[2] = byte(e.SequenceNum >> 40)
-	seq[3] = byte(e.SequenceNum >> 32)
-	seq[4] = byte(e.SequenceNum >> 24)
-	seq[5] = byte(e.SequenceNum >> 16)
-	seq[6] = byte(e.SequenceNum >> 8)
-	seq[7] = byte(e.SequenceNum)
+	binary.BigEndian.PutUint64(seq, e.SequenceNum)
 	h.Write(seq)
 	h.Write([]byte(e.Timestamp.Format(time.RFC3339Nano)))
 	h.Write([]byte(e.EventType))
@@ -157,7 +151,7 @@ func (c *Chain) AttachSink(sink EntrySink) {
 			if seq, hash, has, err := r.LastSeqHash(); err == nil && has {
 				c.nextSeq = seq + 1
 				c.resumedHash = hash
-				c.totalCount = int64(seq + 1)
+				c.totalCount = int64(seq + 1) //nolint:gosec // G115: audit sequence numbers never approach int64 max
 			}
 		}
 	}

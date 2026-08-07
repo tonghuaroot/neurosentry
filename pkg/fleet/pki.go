@@ -116,7 +116,7 @@ func serialNumber() *big.Int {
 
 func writeCertKey(dir, name string, der []byte, key *ecdsa.PrivateKey) error {
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})
-	if err := os.WriteFile(filepath.Join(dir, name+".crt"), certPEM, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name+".crt"), certPEM, 0o644); err != nil { //nolint:gosec // G306: certificates are public/world-readable by design
 		return err
 	}
 	kb, err := x509.MarshalECPrivateKey(key)

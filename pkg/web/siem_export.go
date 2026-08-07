@@ -31,8 +31,8 @@ func newLineWriter(w io.Writer) *lineWriter {
 func (l *lineWriter) json(v any) { _ = l.enc.Encode(v) }
 
 func (l *lineWriter) line(s string) {
-	l.w.WriteString(s)
-	l.w.WriteByte('\n')
+	_, _ = l.w.WriteString(s)
+	_ = l.w.WriteByte('\n')
 }
 
 func (l *lineWriter) flush() { _ = l.w.Flush() }
