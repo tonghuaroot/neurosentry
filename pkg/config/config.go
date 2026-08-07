@@ -13,10 +13,135 @@ import (
 
 // Config represents the NeuroSentry configuration
 type Config struct {
-	Protection ProtectionConfig `mapstructure:"protection"`
-	Agent      AgentConfig      `mapstructure:"agent"`
-	BPF        BPFConfig        `mapstructure:"bpf"`
-	PolicyPath string           `mapstructure:"policy_path"`
+	Protection  ProtectionConfig  `mapstructure:"protection"`
+	Agent       AgentConfig       `mapstructure:"agent"`
+	BPF         BPFConfig         `mapstructure:"bpf"`
+	Sandbox     SandboxConfig     `mapstructure:"sandbox"`
+	MCP         MCPConfig         `mapstructure:"mcp"`
+	Audit       AuditConfig       `mapstructure:"audit"`
+	Web         WebConfig         `mapstructure:"web"`
+	Platform    PlatformConfig    `mapstructure:"platform"`
+	Notify      NotifyConfig      `mapstructure:"notify"`
+	Gateway     GatewayConfig     `mapstructure:"gateway"`
+	Fleet       FleetConfig       `mapstructure:"fleet"`
+	Breaker     BreakerConfig     `mapstructure:"breaker"`
+	SelfProtect SelfProtectConfig `mapstructure:"self_protect"`
+	PolicyPath  string            `mapstructure:"policy_path"`
+	// ConfigPath is the file this config was loaded from (set by the loader),
+	// so self-protection can baseline it. Not a YAML field.
+	ConfigPath string `mapstructure:"-"`
+}
+
+// SelfProtectConfig configures agent anti-tamper self-defense (integrity
+// baseline over the agent binary + config, periodically re-verified).
+type SelfProtectConfig struct {
+	Enabled      bool `mapstructure:"enabled"`
+	IntervalSecs int  `mapstructure:"interval_secs"` // re-verify cadence (default 60)
+}
+
+// BreakerConfig configures the automated circuit breaker (detection -> auto
+// enforcement). DISARMED by default; enable deliberately.
+type BreakerConfig struct {
+	Enabled       bool    `mapstructure:"enabled"`
+	MinSeverity   string  `mapstructure:"min_severity"`   // trip at/above (default critical)
+	DefaultAction string  `mapstructure:"default_action"` // response action (default untrust_pid)
+	CooldownSecs  float64 `mapstructure:"cooldown_secs"`  // per-pid anti-storm (default 60)
+}
+
+// FleetConfig configures at-scale control-plane participation.
+type FleetConfig struct {
+	// Enabled hosts the fleet registry on this node's web API (control plane).
+	Enabled     bool   `mapstructure:"enabled"`
+	EnrollToken string `mapstructure:"enroll_token"` // shared bearer token for agent enroll/heartbeat
+	// HeartbeatSecs is how often this node reports its own health (default 30s).
+	HeartbeatSecs int `mapstructure:"heartbeat_secs"`
+
+	// MTLSEnabled serves the agent-facing endpoints (enroll/heartbeat) on a
+	// dedicated mutual-TLS listener, so agents authenticate with a client
+	// certificate (not just the shared token). MTLSListen is the address
+	// (default :9443); PKIDir holds ca/server/client certs — auto-generated
+	// there for demos when absent.
+	MTLSEnabled bool   `mapstructure:"mtls_enabled"`
+	MTLSListen  string `mapstructure:"mtls_listen"`
+	PKIDir      string `mapstructure:"pki_dir"`
+}
+
+// SandboxConfig configures Landlock-based process sandboxing
+type SandboxConfig struct {
+	Enabled        bool     `mapstructure:"enabled"`
+	ReadOnlyPaths  []string `mapstructure:"read_only_paths"`
+	ReadWritePaths []string `mapstructure:"read_write_paths"`
+	DenyPaths      []string `mapstructure:"deny_paths"`
+}
+
+// MCPConfig configures MCP protocol interception
+type MCPConfig struct {
+	Enabled      bool     `mapstructure:"enabled"`
+	ListenAddr   string   `mapstructure:"listen_addr"`
+	UpstreamAddr string   `mapstructure:"upstream_addr"`
+	AllowedTools []string `mapstructure:"allowed_tools"`
+	BlockedTools []string `mapstructure:"blocked_tools"`
+	LogToolCalls bool     `mapstructure:"log_tool_calls"`
+}
+
+// AuditConfig configures tamper-proof audit logging
+type AuditConfig struct {
+	Enabled   bool   `mapstructure:"enabled"`
+	LogPath   string `mapstructure:"log_path"`
+	MaxSizeMB int    `mapstructure:"max_size_mb"`
+	// DBDriver selects the durable audit store backend: "sqlite" (default,
+	// embedded, CGO-free) or "postgres" (production/HA). Aliases "pg" and
+	// "postgresql" are accepted.
+	DBDriver string `mapstructure:"db_driver"`
+	// DBPath is the SQLite database file path (used when DBDriver is sqlite).
+	// When set, every audit entry is persisted (surviving restart and the
+	// in-memory ring) and the trail becomes queryable at volume for
+	// retention/compliance.
+	DBPath string `mapstructure:"db_path"`
+	// DBDSN is the Postgres connection string (used when DBDriver is postgres),
+	// e.g. "postgres://user:pass@host:5432/neurosentry?sslmode=require".
+	DBDSN string `mapstructure:"db_dsn"`
+}
+
+// WebConfig configures the web dashboard
+type WebConfig struct {
+	Enabled    bool   `mapstructure:"enabled"`
+	ListenAddr string `mapstructure:"listen_addr"`
+}
+
+// GatewayConfig configures the inline AI gateway (OpenAI-compatible relay).
+type GatewayConfig struct {
+	Enabled          bool     `mapstructure:"enabled"`
+	ListenAddr       string   `mapstructure:"listen_addr"`
+	BlockOnDetect    bool     `mapstructure:"block_on_detect"`
+	AllowedProviders []string `mapstructure:"allowed_providers"`
+	DefaultProvider  string   `mapstructure:"default_provider"`
+}
+
+// NotifyConfig configures outbound alert notification channels.
+type NotifyConfig struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	WebhookURL   string `mapstructure:"webhook_url"`
+	SlackWebhook string `mapstructure:"slack_webhook"`
+	MinSeverity  string `mapstructure:"min_severity"` // info|low|medium|high|critical (default high)
+	// Splunk HTTP Event Collector (real-time SIEM streaming).
+	SplunkHECURL   string `mapstructure:"splunk_hec_url"`
+	SplunkHECToken string `mapstructure:"splunk_hec_token"`
+	SplunkIndex    string `mapstructure:"splunk_index"`
+	// Microsoft Sentinel (Log Analytics HTTP Data Collector API).
+	SentinelWorkspaceID string `mapstructure:"sentinel_workspace_id"`
+	SentinelSharedKey   string `mapstructure:"sentinel_shared_key"`
+	SentinelLogType     string `mapstructure:"sentinel_log_type"`
+}
+
+// PlatformConfig configures the multi-tenant control plane (identity, RBAC).
+type PlatformConfig struct {
+	Enabled           bool   `mapstructure:"enabled"`
+	SnapshotPath      string `mapstructure:"snapshot_path"`
+	JWTSecret         string `mapstructure:"jwt_secret"`         // if empty, a random key is generated at boot
+	BootstrapTenant   string `mapstructure:"bootstrap_tenant"`   // default tenant slug created on first boot
+	BootstrapEmail    string `mapstructure:"bootstrap_email"`    // default admin email
+	BootstrapPassword string `mapstructure:"bootstrap_password"` // if empty, a random password is generated and logged once
 }
 
 // ProtectionConfig defines which protection modules are enabled
@@ -138,6 +263,30 @@ func Default() *Config {
 			RingBufferSizeKB: 256,
 			PerCPUMapSize:    1024,
 		},
+		Sandbox: SandboxConfig{
+			Enabled: false,
+		},
+		MCP: MCPConfig{
+			Enabled:      false,
+			ListenAddr:   "127.0.0.1:8081",
+			LogToolCalls: true,
+		},
+		Audit: AuditConfig{
+			Enabled:   true,
+			LogPath:   "/var/log/neurosentry/audit.jsonl",
+			MaxSizeMB: 100,
+			DBDriver:  "sqlite",
+		},
+		Web: WebConfig{
+			Enabled:    false,
+			ListenAddr: ":8080",
+		},
+		Platform: PlatformConfig{
+			Enabled:         false,
+			SnapshotPath:    "/var/lib/neurosentry/control-plane.json",
+			BootstrapTenant: "default",
+			BootstrapEmail:  "admin@neurosentry.local",
+		},
 		PolicyPath: "/etc/neurosentry/policy.yaml",
 	}
 }
@@ -176,6 +325,9 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	// Record the source path so self-protection can baseline it.
+	result.ConfigPath = path
+
 	return &result, nil
 }
 
@@ -190,6 +342,7 @@ func setDefaults(v *viper.Viper, cfg *Config) {
 	v.SetDefault("protection.pytorch_observability.enabled", cfg.Protection.PyTorchObservability.Enabled)
 	v.SetDefault("agent.metrics_port", cfg.Agent.MetricsPort)
 	v.SetDefault("agent.log_level", cfg.Agent.LogLevel)
+	v.SetDefault("audit.db_driver", cfg.Audit.DBDriver)
 	v.SetDefault("policy_path", cfg.PolicyPath)
 }
 

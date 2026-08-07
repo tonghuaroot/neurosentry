@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "neurosentry.name" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "neurosentry.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    protection:
+      model_fim:
+        enabled: {{ .Values.protection.modelFIM.enabled }}
+        enforce_mode: {{ .Values.protection.modelFIM.enforceMode }}
+        protected_extensions:
+          {{- range .Values.protection.modelFIM.protectedExtensions }}
+          - {{ . | quote }}
+          {{- end }}
+        trusted_containers:
+          {{- range .Values.protection.modelFIM.trustedContainers }}
+          - {{ . | quote }}
+          {{- end }}
+      network_containment:
+        enabled: {{ .Values.protection.networkContainment.enabled }}
+        use_tc: {{ .Values.protection.networkContainment.useTC }}
+        allowed_egress:
+          {{- range .Values.protection.networkContainment.allowedEgress }}
+          - {{ . | quote }}
+          {{- end }}
+      pickle_protection:
+        enabled: {{ .Values.protection.pickleProtection.enabled }}
+    agent:
+      metrics_port: {{ .Values.ports.metrics }}
+      log_level: {{ .Values.agent.logLevel }}
+      log_format: {{ .Values.agent.logFormat }}
+      kubernetes_enabled: true
+    policy_path: /etc/neurosentry/policy.yaml
+
+  policy.yaml: |
+    version: "1.0"
+    metadata:
+      name: "k8s-inference-protection"
+    rules:
+      - name: "block-unauthorized-model-access"
+        enabled: true
+        condition:
+          type: "file_access"
+          extensions: [".safetensors", ".gguf", ".pth"]
+        action: "block"
+        severity: "high"
+        alert: true

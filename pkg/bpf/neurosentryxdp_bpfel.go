@@ -55,7 +55,7 @@ func LoadNeuroSentryXDP() (*ebpf.CollectionSpec, error) {
 //	*NeuroSentryXDPMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadNeuroSentryXDPObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadNeuroSentryXDPObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadNeuroSentryXDP()
 	if err != nil {
 		return err

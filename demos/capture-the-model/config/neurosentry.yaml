@@ -39,21 +39,19 @@ protection:
     allow_dns: false
 
   # Pickle Protection
-  #
-  # IMPORTANT — v1.0 status: the pickle uprobe currently emits an event on a
-  # stack-depth heuristic, NOT on per-symbol matching. The dangerous_symbols
-  # list below is populated into a BPF hash map by user-space but is not yet
-  # consulted from the BPF program; treat it as informational. Symbol-aware
-  # blocking is on the v1.1 list — see CHANGELOG "Known limitations".
   pickle_protection:
     enabled: true
-    dangerous_symbols:  # informational in v1.0 (see comment above)
+    dangerous_symbols:
       - "os.system"
       - "eval"
       - "exec"
       - "__import__"
       - "subprocess"
-    block_on_detect: false  # observe-only in v1.0
+    # block_on_detect is observe-only in v1.0 — uprobes emit a critical
+    # event on a dangerous symbol but do not interrupt the unpickle.
+    # Blocking would require a uretprobe that traps the call, which the
+    # current verifier rules on lsm/uprobe combination don't allow.
+    block_on_detect: false
 
   # PyTorch Observability
   pytorch_observability:

@@ -1,5 +1,9 @@
 # NeuroSentry Monitoring Guide
 
+> ℹ️ **Canonical monitoring doc:** [monitoring-guide.md](monitoring-guide.md).
+> This file is retained as older background material — prefer the guide above.
+
+
 ## Metrics Endpoints
 
 NeuroSentry exposes Prometheus-compatible metrics at:
@@ -22,19 +26,17 @@ NeuroSentry exposes Prometheus-compatible metrics at:
 | `neurosentry_lsm_blocked_total` | Gauge | Total file accesses blocked |
 | `neurosentry_lsm_protected_files_seen` | Gauge | Protected files seen |
 
-### Network Containment (TC/XDP)
+### Network Containment (TC)
 
-> **Note**: NeuroSentry uses TC (Traffic Control) by default for better cloud compatibility.
-> XDP metrics are still exposed for backwards compatibility.
+> **Note**: The network layer is TC (Traffic Control), chosen for cloud
+> compatibility. These gauges keep the historical `xdp_*` names but are populated
+> by the TC layer (ingress + egress packet counts, suspicious-packet count).
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| `neurosentry_tc_packets_total` | Gauge | Total packets processed by TC |
-| `neurosentry_tc_passed_total` | Gauge | Packets passed by TC filter |
-| `neurosentry_tc_flagged_total` | Gauge | Suspicious packets flagged (TC is monitor-only) |
-| `neurosentry_xdp_packets_total` | Gauge | Total packets processed by XDP (if enabled) |
-| `neurosentry_xdp_passed_total` | Gauge | Packets passed by XDP filter |
-| `neurosentry_xdp_dropped_total` | Gauge | Packets dropped by XDP filter |
+| `neurosentry_xdp_packets_total` | Gauge | Total packets processed by the TC layer |
+| `neurosentry_xdp_passed_total` | Gauge | Packets passed (TC is monitor-only, so all packets pass) |
+| `neurosentry_xdp_dropped_total` | Gauge | Suspicious packets flagged (what would be dropped in enforce mode) |
 
 ### Uprobe (PyTorch/Pickle Monitoring)
 | Metric | Type | Description |
@@ -98,18 +100,18 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
 ```
 
-## XDP Mode Selection
+## Network Layer Attachment (TC)
 
-NeuroSentry automatically selects the best XDP mode for your network interface:
-
-| Mode | Performance | Compatibility | When Used |
-|------|-------------|---------------|-----------|
-| Native/Driver | Fastest | Requires driver support | First attempt |
-| Generic/SKB | Good | Universal | Fallback |
+The network layer attaches via TC (Traffic Control), not XDP. On kernel 6.6+ it
+uses the TCX API (ingress + egress); on older kernels it falls back to the legacy
+`tc` clsact qdisc. There is no XDP mode selection at runtime — the XDP program is
+not loaded or attached, so the "Attached XDP to ens5 in generic/SKB mode" log
+line never fires.
 
 **Example on AWS EC2:**
 ```
-2026/02/06 Attached XDP to ens5 in generic/SKB mode (fallback)
+2026/02/06 Attached TCX ingress to ens5
+2026/02/06 Attached TCX egress to ens5
 ```
 
 ## Uprobe Symbol Resolution

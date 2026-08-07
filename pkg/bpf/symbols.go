@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build linux
-// +build linux
 
 package bpf
 
@@ -10,7 +9,6 @@ import (
 	"debug/elf"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -387,25 +385,4 @@ func ResolveSymbolsWithStrategy(libPath string, patterns []string, strategy Symb
 	}
 
 	return symbols, nil
-}
-
-// expandGlobPatterns expands glob patterns and returns all matching paths
-func expandGlobPatterns(patterns []string) []string {
-	var results []string
-	seen := make(map[string]bool)
-
-	for _, pattern := range patterns {
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			continue
-		}
-		for _, match := range matches {
-			if !seen[match] {
-				seen[match] = true
-				results = append(results, match)
-			}
-		}
-	}
-
-	return results
 }

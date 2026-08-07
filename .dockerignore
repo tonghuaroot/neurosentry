@@ -12,7 +12,6 @@ build/
 
 # Demo-time test data (model-data is a 13GB sparse file that bloats the build)
 demos/capture-the-model/scoring/model-data/
-demos/capture-the-model/model-data/
 demos/record/audio/
 demos/record/audio_aria/
 demos/record/audio_aria_m4a/

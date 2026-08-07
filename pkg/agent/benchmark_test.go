@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tonghuaroot/neurosentry/pkg/policy"
+	"github.com/neurosentry/neurosentry/pkg/policy"
 )
 
 // BenchmarkPolicyEvaluate benchmarks policy evaluation performance
 func BenchmarkPolicyEvaluate(b *testing.B) {
 	pol := policy.DefaultPolicy()
 
-	event := map[string]interface{}{
+	event := map[string]any{
 		"type":      "file_access",
 		"extension": ".safetensors",
 		"file_path": "/models/test.safetensors",
@@ -184,7 +184,7 @@ func BenchmarkEventCreation(b *testing.B) {
 func BenchmarkParallelPolicyEvaluate(b *testing.B) {
 	pol := policy.DefaultPolicy()
 
-	event := map[string]interface{}{
+	event := map[string]any{
 		"type":      "file_access",
 		"extension": ".pth",
 	}

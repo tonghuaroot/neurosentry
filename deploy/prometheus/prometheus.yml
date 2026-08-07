@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+scrape_configs:
+  - job_name: neurosentry
+    static_configs:
+      # host network: NeuroSentry exposes metrics on :2112
+      - targets: ["host.docker.internal:2112", "localhost:2112"]

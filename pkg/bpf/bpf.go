@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build linux
-// +build linux
 
 package bpf
 
@@ -21,8 +20,8 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
-	"github.com/tonghuaroot/neurosentry/pkg/config"
-	"github.com/tonghuaroot/neurosentry/pkg/policy"
+	"github.com/neurosentry/neurosentry/pkg/config"
+	"github.com/neurosentry/neurosentry/pkg/policy"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel -cc clang -cflags "-O2 -g -Wall -Wno-visibility -I./headers" -tags linux NeuroSentryLSM ./neurosentry_lsm.c
@@ -78,27 +77,6 @@ func (m *Manager) Load() error {
 
 	// Load LSM programs
 	if m.cfg.Protection.ModelFIM.Enabled {
-		// Verify `bpf` is in the active LSM stack BEFORE attempting to load.
-		// If the host booted without `lsm=...,bpf` in the kernel cmdline, the
-		// program loads but the hook is never invoked at runtime — silent
-		// enforcement failure with no LSM event ever firing. Earlier versions
-		// happily logged "LSM hooks attached" in that broken state; warn loudly
-		// here so the operator sees the gap during agent boot.
-		switch active, err := checkBPFLSMActive(); {
-		case err != nil:
-			// Couldn't read /sys/kernel/security/lsm (e.g., agent runs in a
-			// container where securityfs isn't mounted). Inconclusive — don't
-			// scare the operator. The LSM still attaches and fires correctly
-			// when the host kernel was booted with `bpf` in the LSM list.
-			log.Printf("Note: could not verify BPF LSM membership from agent context (%v); trusting loaded program.", err)
-		case !active:
-			log.Printf("WARNING: 'bpf' is NOT in the active LSM stack — the LSM hook will load but never be invoked.")
-			log.Printf("WARNING: Add 'bpf' to the kernel cmdline:")
-			log.Printf("WARNING:   GRUB_CMDLINE_LINUX_DEFAULT=\"... lsm=lockdown,capability,landlock,yama,apparmor,bpf\"")
-			log.Printf("WARNING:   then run 'sudo update-grub' and reboot.")
-		default:
-			log.Printf("Verified: 'bpf' is in the active LSM stack.")
-		}
 		if err := m.loadLSM(); err != nil {
 			return fmt.Errorf("failed to load LSM programs: %w", err)
 		}
@@ -482,14 +460,17 @@ func (m *Manager) AddTrustedPID(pid uint32) error {
 		return fmt.Errorf("LSM not loaded")
 	}
 
-	// Security validation: verify the PID exists
-	procPath := fmt.Sprintf("/proc/%d", pid)
-	if _, err := os.Stat(procPath); os.IsNotExist(err) {
-		return fmt.Errorf("PID %d does not exist", pid)
+	// A trust action frequently targets a finding whose process has already
+	// exited (historical events, replayed data). We still record the allowlist
+	// entry — the map is keyed by PID and the periodic PruneDeadTrustedPIDs
+	// sweep removes stale entries, closing the PID-recycling TOCTOU window — but
+	// we log liveness so the audit trail distinguishes trusting a running
+	// process from pre-allowlisting a PID that isn't currently live.
+	live := true
+	if _, err := os.Stat(fmt.Sprintf("/proc/%d", pid)); os.IsNotExist(err) {
+		live = false
 	}
-
-	// Log the operation for audit trail
-	log.Printf("SECURITY: Adding PID %d to trusted list", pid)
+	log.Printf("SECURITY: Adding PID %d to trusted list (live=%v)", pid, live)
 
 	value := uint8(1)
 	return m.lsmObjs.TrustedPids.Put(&pid, &value)
@@ -505,7 +486,14 @@ func (m *Manager) RemoveTrustedPID(pid uint32) error {
 	// Log the operation for audit trail
 	log.Printf("SECURITY: Removing PID %d from trusted list", pid)
 
-	return m.lsmObjs.TrustedPids.Delete(&pid)
+	// Idempotent: removing a PID that was never trusted is a successful no-op
+	// (the desired end-state — PID not trusted — already holds). Without this,
+	// the circuit breaker's untrust_pid auto-response fails with "key does not
+	// exist" whenever it fires on a PID that isn't in the allowlist.
+	if err := m.lsmObjs.TrustedPids.Delete(&pid); err != nil && !isNotExistError(err) {
+		return err
+	}
+	return nil
 }
 
 // PruneDeadTrustedPIDs walks the trusted_pids BPF map, checks each PID
@@ -571,6 +559,95 @@ func (m *Manager) AddProtectedExtension(ext string) error {
 
 	value := uint8(1)
 	return m.lsmObjs.ProtectedExtensions.Put(key[:], &value)
+}
+
+// tcIPKey maps an IPv4 address to the TC blocked_ips map key. The eBPF program
+// keys on the raw network-order `daddr` bytes; encoding the 4 octets as a
+// little-endian uint32 reproduces those bytes on the little-endian target.
+func tcIPKey(ip net.IP) (uint32, bool) {
+	v4 := ip.To4()
+	if v4 == nil {
+		return 0, false
+	}
+	return binary.LittleEndian.Uint32(v4), true
+}
+
+// SetNetworkEnforce toggles egress enforcement: when on, packets to a
+// destination on the egress blocklist are dropped (block_exfiltration); when
+// off, such flows are logged but pass (monitor-only).
+func (m *Manager) SetNetworkEnforce(on bool) error {
+	if m.tcObjs == nil || m.tcObjs.NsTcCfg == nil {
+		return fmt.Errorf("TC not loaded")
+	}
+	var key uint32
+	val := uint8(0)
+	if on {
+		val = 1
+	}
+	log.Printf("SECURITY: network egress enforcement %s", map[bool]string{true: "ENABLED (block_exfiltration)", false: "disabled (monitor-only)"}[on])
+	return m.tcObjs.NsTcCfg.Put(&key, &val)
+}
+
+// AddBlockedIP adds a destination IPv4 to the egress blocklist. With network
+// enforcement enabled, egress to it is dropped; otherwise it is logged.
+func (m *Manager) AddBlockedIP(ip net.IP) error {
+	if m.tcObjs == nil || m.tcObjs.BlockedIps == nil {
+		return fmt.Errorf("TC not loaded")
+	}
+	key, ok := tcIPKey(ip)
+	if !ok {
+		return fmt.Errorf("not an IPv4 address: %s", ip)
+	}
+	log.Printf("SECURITY: adding %s to the egress blocklist", ip)
+	value := uint8(1)
+	return m.tcObjs.BlockedIps.Put(&key, &value)
+}
+
+// RemoveBlockedIP removes a destination from the egress blocklist. Idempotent —
+// removing an address that isn't present is a successful no-op.
+func (m *Manager) RemoveBlockedIP(ip net.IP) error {
+	if m.tcObjs == nil || m.tcObjs.BlockedIps == nil {
+		return fmt.Errorf("TC not loaded")
+	}
+	key, ok := tcIPKey(ip)
+	if !ok {
+		return fmt.Errorf("not an IPv4 address: %s", ip)
+	}
+	log.Printf("SECURITY: removing %s from the egress blocklist", ip)
+	if err := m.tcObjs.BlockedIps.Delete(&key); err != nil && !isNotExistError(err) {
+		return err
+	}
+	return nil
+}
+
+// ListBlockedIPs returns the destinations currently on the egress blocklist.
+func (m *Manager) ListBlockedIPs() ([]string, error) {
+	if m.tcObjs == nil || m.tcObjs.BlockedIps == nil {
+		return nil, fmt.Errorf("TC not loaded")
+	}
+	var out []string
+	var key uint32
+	var val uint8
+	it := m.tcObjs.BlockedIps.Iterate()
+	for it.Next(&key, &val) {
+		var b [4]byte
+		binary.LittleEndian.PutUint32(b[:], key)
+		out = append(out, net.IPv4(b[0], b[1], b[2], b[3]).String())
+	}
+	return out, it.Err()
+}
+
+// NetworkEnforcing reports whether egress enforcement (block_exfiltration) is on.
+func (m *Manager) NetworkEnforcing() bool {
+	if m.tcObjs == nil || m.tcObjs.NsTcCfg == nil {
+		return false
+	}
+	var key uint32
+	var val uint8
+	if err := m.tcObjs.NsTcCfg.Lookup(&key, &val); err != nil {
+		return false
+	}
+	return val != 0
 }
 
 // AddAllowedIP adds an IP or CIDR to the network allowlist
@@ -734,7 +811,7 @@ func clearBPFMap(m *ebpf.Map) error {
 
 	// Pick a key receiver matching the map's key size. The cilium/ebpf
 	// iterator marshals the key into the receiver via reflection.
-	var key interface{}
+	var key any
 	switch keySize {
 	case 4:
 		key = new(uint32)
@@ -745,7 +822,7 @@ func clearBPFMap(m *ebpf.Map) error {
 	}
 	value := make([]byte, valueSize) // never nil — see note above
 
-	var keysToDelete []interface{}
+	var keysToDelete []any
 	iter := m.Iterate()
 	for iter.Next(key, &value) {
 		switch k := key.(type) {
@@ -860,32 +937,6 @@ func checkKernelVersion() error {
 
 	log.Printf("Kernel version %d.%d detected (requires %d.%d+)", major, minor, requiredMajor, requiredMinor)
 	return nil
-}
-
-// checkBPFLSMActive verifies that `bpf` is in the active LSM stack at agent
-// startup. Required for the LSM `file_open` hook to actually be invoked at
-// runtime. Three return states:
-//
-//	(true, nil)   — `bpf` is present in the active LSM stack
-//	(false, nil)  — file readable, `bpf` definitively NOT in the stack
-//	(false, err)  — file unreadable (e.g. running in a container without
-//	                securityfs); inconclusive
-//
-// The caller distinguishes the three so the operator sees a real WARNING
-// only when the file says `bpf` is absent, not when we couldn't ask.
-func checkBPFLSMActive() (bool, error) {
-	const lsmFile = "/sys/kernel/security/lsm"
-	data, err := os.ReadFile(lsmFile)
-	if err != nil {
-		return false, fmt.Errorf("%s unreadable: %w", lsmFile, err)
-	}
-	stack := strings.TrimSpace(string(data))
-	for _, mod := range strings.Split(stack, ",") {
-		if strings.TrimSpace(mod) == "bpf" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 // getDefaultInterface returns the default network interface

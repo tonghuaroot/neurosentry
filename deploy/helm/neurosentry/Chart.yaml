@@ -1,0 +1,17 @@
+apiVersion: v2
+name: neurosentry
+description: eBPF runtime protection for AI inference — deployed as a per-node DaemonSet
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+keywords:
+  - ebpf
+  - security
+  - ai
+  - runtime-protection
+  - llm
+home: https://github.com/neurosentry/neurosentry
+sources:
+  - https://github.com/neurosentry/neurosentry
+maintainers:
+  - name: NeuroSentry Contributors

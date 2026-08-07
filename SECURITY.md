@@ -76,9 +76,42 @@ When deploying NeuroSentry:
 NeuroSentry provides the following security features:
 
 - **Model File Integrity Monitoring (FIM)**: Protects AI model files from unauthorized access
-- **Network Containment**: Blocks data exfiltration via TC/XDP eBPF programs
-- **Pickle Bomb Protection**: Detects and blocks malicious pickle deserialization
+- **Network Containment**: Monitors network egress via TC eBPF programs and raises exfiltration findings (monitor-only in v1.0 — does not drop packets)
+- **Pickle Bomb Protection**: Detects and correlates malicious pickle deserialization via uprobes (observe-only — does not block the call)
 - **PyTorch Observability**: Monitors model loading operations
+
+## Supply-chain provenance
+
+NeuroSentry runs a privileged eBPF agent in the kernel, so the integrity of what
+you deploy matters as much as what it does. Every release build produces a
+**CycloneDX software bill of materials (SBOM)** enumerating all Go module
+dependencies and their licenses:
+
+```
+make sbom      # writes bin/neurosentry.cdx.json (CycloneDX 1.6)
+```
+
+CI generates and publishes the SBOM as a build artifact alongside the binary
+(see `.github/workflows/ci.yml`). The agent is built `CGO_ENABLED=0` as a static
+binary — including the pure-Go SQLite dependency — so there is no dynamic
+system-library surface to audit separately.
+
+### Signed releases (keyless / Sigstore)
+
+CI signs both the binary and the SBOM with **cosign keyless signing**: the
+signing identity is the GitHub Actions workflow's OIDC token (no long-lived
+keys), and the signatures are recorded in the public **Rekor** transparency log.
+The `.sig` and `.pem` files are published as build artifacts. Verify a download
+with:
+
+```
+cosign verify-blob \
+  --certificate neurosentry.pem \
+  --signature neurosentry.sig \
+  --certificate-identity-regexp 'https://github.com/.*/neurosentry.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  neurosentry
+```
 
 ## Acknowledgments
 

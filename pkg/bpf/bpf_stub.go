@@ -2,17 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !linux
-// +build !linux
 
 package bpf
 
 import (
 	"fmt"
+	"net"
 	"runtime"
 
 	"github.com/cilium/ebpf"
-	"github.com/tonghuaroot/neurosentry/pkg/config"
-	"github.com/tonghuaroot/neurosentry/pkg/policy"
+	"github.com/neurosentry/neurosentry/pkg/config"
+	"github.com/neurosentry/neurosentry/pkg/policy"
 )
 
 // Stub types for non-Linux platforms
@@ -84,39 +84,58 @@ func (m *Manager) AttachUprobes() error {
 	return fmt.Errorf("uprobes are only supported on Linux")
 }
 
+// SetNetworkEnforce is a no-op on non-Linux platforms
+func (m *Manager) SetNetworkEnforce(on bool) error { return nil }
+
+// AddBlockedIP is a no-op on non-Linux platforms
+func (m *Manager) AddBlockedIP(ip net.IP) error { return nil }
+
+// RemoveBlockedIP is a no-op on non-Linux platforms
+func (m *Manager) RemoveBlockedIP(ip net.IP) error { return nil }
+
+// ListBlockedIPs is empty on non-Linux platforms
+func (m *Manager) ListBlockedIPs() ([]string, error) { return nil, nil }
+
+// NetworkEnforcing is always false on non-Linux platforms
+func (m *Manager) NetworkEnforcing() bool { return false }
+
 // AddTrustedPID is a no-op on non-Linux platforms
-func (m *Manager) AddTrustedPID(_ uint32) error {
+func (m *Manager) AddTrustedPID(pid uint32) error {
 	return nil
 }
 
 // RemoveTrustedPID is a no-op on non-Linux platforms
-func (m *Manager) RemoveTrustedPID(_ uint32) error {
+func (m *Manager) RemoveTrustedPID(pid uint32) error {
 	return nil
 }
 
 // AddProtectedExtension is a no-op on non-Linux platforms
-func (m *Manager) AddProtectedExtension(_ string) error {
+func (m *Manager) AddProtectedExtension(ext string) error {
 	return nil
 }
 
 // AddAllowedIP is a no-op on non-Linux platforms
-func (m *Manager) AddAllowedIP(_ string) error {
+func (m *Manager) AddAllowedIP(ipStr string) error {
 	return nil
 }
 
 // AddDangerousSymbol is a no-op on non-Linux platforms
-func (m *Manager) AddDangerousSymbol(_ string) error {
+func (m *Manager) AddDangerousSymbol(symbol string) error {
 	return nil
+}
+
+// EventsMap returns nil on non-Linux platforms
+func (m *Manager) EventsMap() *ebpf.Map {
+	return nil
+}
+
+// PruneDeadTrustedPIDs is a no-op on non-Linux platforms
+func (m *Manager) PruneDeadTrustedPIDs() (int, error) {
+	return 0, nil
 }
 
 // Close is a no-op on non-Linux platforms
 func (m *Manager) Close() {}
-
-// EventsMap returns nil on non-Linux platforms (no LSM ringbuf to read from).
-func (m *Manager) EventsMap() *ebpf.Map { return nil }
-
-// PruneDeadTrustedPIDs is a no-op on non-Linux platforms.
-func (m *Manager) PruneDeadTrustedPIDs() (int, error) { return 0, nil }
 
 // ClearMaps is a no-op on non-Linux platforms
 func (m *Manager) ClearMaps() error {

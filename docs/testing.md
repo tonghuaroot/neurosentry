@@ -12,8 +12,8 @@
 ### Component Status
 | Component | Status | Details |
 |-----------|--------|---------|
-| LSM Hooks | ✅ | File integrity monitoring active |
-| XDP | ✅ | Generic/SKB mode (auto-fallback) |
+| LSM Hooks | ✅ | File integrity monitoring active (`file_open` hook) |
+| TC (network) | ✅ | ingress/egress via TCX (6.6+) or legacy clsact; monitor-only |
 | Pickle Uprobe | ✅ | Attached to `PyInit__pickle` |
 | PyTorch Uprobe | ✅ | Attached to `torch::serialize` symbols |
 | Metrics Server | ✅ | Port 2112 |
@@ -26,9 +26,10 @@
 2026/02/06 05:55:44 Initializing eBPF programs...
 2026/02/06 05:55:44 Enabling Model FIM (File Integrity Monitoring)
 2026/02/06 05:55:44   LSM hooks attached successfully
-2026/02/06 05:55:44 Enabling Network Containment (XDP)
-2026/02/06 05:55:44 Attached XDP to ens5 in generic/SKB mode (fallback)
-2026/02/06 05:55:44   XDP programs attached successfully
+2026/02/06 05:55:44 Enabling Network Containment (TC)
+2026/02/06 05:55:44 Attached TCX ingress to ens5
+2026/02/06 05:55:44 Attached TCX egress to ens5
+2026/02/06 05:55:44   TC programs attached successfully
 2026/02/06 05:55:44 Enabling Pickle Bomb Protection (Uprobes)
 2026/02/06 05:55:48 Attached PyTorch uprobe to symbol _ZNSt19_Sp_counted_deleter...
 2026/02/06 05:55:48 Attached PyTorch probes to /home/ubuntu/.local/lib/.../libtorch_cpu.so
@@ -41,7 +42,7 @@
 
 ## Test Cases
 
-### Test 1: XDP Network Filtering
+### Test 1: TC Network Monitoring
 
 **Input:**
 ```bash
@@ -50,17 +51,16 @@ curl -s http://example.com > /dev/null
 curl -s https://pytorch.org > /dev/null
 
 # Check metrics
-curl -s http://localhost:2112/metrics | grep xdp
+curl -s http://localhost:2112/metrics | grep tc
 ```
 
 **Output:**
 ```
-neurosentry_xdp_packets_total 353
-neurosentry_xdp_passed_total 177
-neurosentry_xdp_dropped_total 176
+neurosentry_tc_ingress_packets_total <increases with observed traffic>
+neurosentry_tc_egress_packets_total <increases with observed traffic>
 ```
 
-**Explanation**: XDP program processed 353 packets, passed 177 (allowed traffic), dropped 176 (blocked/filtered traffic). The ~50% drop rate shows active network filtering.
+**Explanation**: The TC ingress/egress programs attach to the interface and observe every packet, recording flow metadata (PID, destination IP, byte counts) for exfiltration analysis. In v1.0 the network layer is **monitor-only** — no packets are dropped. The counters rise as traffic flows; there is no "dropped" counter because TC does not block traffic here. (XDP is not loaded, so there are no `neurosentry_xdp_*` metrics.)
 
 ### Test 2: File Access Monitoring (LSM)
 
@@ -176,9 +176,8 @@ neurosentry_uptime_seconds 70495.005163578
 | Metric | Value | Description |
 |--------|-------|-------------|
 | neurosentry_uptime_seconds | 5.00 | Uptime in seconds |
-| neurosentry_xdp_packets_total | 353 | Total packets processed |
-| neurosentry_xdp_passed_total | 177 | Allowed packets |
-| neurosentry_xdp_dropped_total | 176 | Blocked packets |
+| neurosentry_tc_ingress_packets_total | (rises with traffic) | Ingress packets observed (monitor-only) |
+| neurosentry_tc_egress_packets_total | (rises with traffic) | Egress packets observed (monitor-only) |
 | neurosentry_lsm_access_attempts_total | 0 | File access events |
 | neurosentry_uprobe_pickle_loads_total | 0 | Pickle loads monitored |
 | neurosentry_uprobe_model_loads_total | 0 | Model loads monitored |
@@ -197,18 +196,19 @@ Shows uptime increasing steadily over 15 minutes:
 
 ![Uptime Graph](images/final_uptime_graph.png)
 
-## XDP Mode Fallback
+## TC Attachment Fallback
 
-NeuroSentry automatically handles XDP driver compatibility:
+The network layer is TC (not XDP), chosen for cloud compatibility. NeuroSentry attaches it in two tiers:
 
 ```
-1. First attempts Native/Driver mode (best performance)
-2. Falls back to Generic/SKB mode if native fails (universal compatibility)
+1. First attempts TCX attachment (kernel 6.6+, native and clean)
+2. Falls back to legacy clsact qdisc + tc filter if TCX is unavailable (older kernels)
 ```
 
 **Example log on AWS EC2 (ENA driver):**
 ```
-Attached XDP to ens5 in generic/SKB mode (fallback)
+Attached TCX ingress to ens5
+Attached TCX egress to ens5
 ```
 
 ## Uprobe Symbol Resolution

@@ -1,0 +1,68 @@
+# Default values for the NeuroSentry DaemonSet.
+
+image:
+  repository: neurosentry
+  tag: ""          # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Extra args to the agent. Keep real eBPF on; never add --skip-bpf in production.
+# --allow-degraded lets a node without BPF LSM start monitor-only instead of
+# failing safe; leave false to enforce fail-safe.
+extraArgs: []
+allowDegraded: false
+
+# Node scheduling.
+tolerations:
+  - operator: Exists   # run on every node, including control-plane
+nodeSelector: {}
+affinity: {}
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+
+# Pod resource envelope. The Phase 0 SLO targets <3% CPU / bounded memory.
+resources:
+  limits:
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Ports.
+ports:
+  metrics: 2112
+  web: 8080
+
+# Probes hit the web listener (/healthz liveness, /readyz readiness).
+probes:
+  liveness:
+    initialDelaySeconds: 10
+    periodSeconds: 30
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# ServiceMonitor for the Prometheus Operator (off by default).
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+# Protection configuration rendered into the agent ConfigMap.
+protection:
+  modelFIM:
+    enabled: true
+    enforceMode: true
+    protectedExtensions: [".safetensors", ".gguf", ".pth", ".pkl"]
+    trustedContainers: ["app=inference-server"]
+  networkContainment:
+    enabled: true
+    useTC: true
+    allowedEgress: ["10.0.0.0/8", "172.16.0.0/12"]
+  pickleProtection:
+    enabled: true
+
+agent:
+  logLevel: info
+  logFormat: json

@@ -99,7 +99,7 @@ agent:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | bool | `true` | Enable TC/XDP network observability |
+| `enabled` | bool | `true` | Enable TC network observability (monitor-only) |
 | `use_tc` | bool | `true` | Use TC instead of XDP (recommended for cloud) |
 | `allowed_egress` | []string | See defaults | Allowed destination CIDRs (single-IP precision today; LPM-trie for proper CIDR matching is roadmap) |
 | `blocked_ips` | []string | `[]` | Explicitly blocked IPs |
