@@ -34,8 +34,14 @@ type SecurityMetrics struct {
 	pickleLoadsTotal        *prometheus.CounterVec
 	pickleDangerousDetected *prometheus.CounterVec
 
+	// Cross-layer correlation + AI gateway metrics
+	correlationFindings *prometheus.CounterVec
+	gatewayRequests     *prometheus.CounterVec
+	gatewayCostUSD      *prometheus.CounterVec
+
 	// Operational metrics
 	errorsTotal      *prometheus.CounterVec
+	eventsDropped    *prometheus.CounterVec
 	webhookSentTotal *prometheus.CounterVec
 	policyReloads    prometheus.Counter
 	configReloads    prometheus.Counter
@@ -135,12 +141,40 @@ func NewSecurityMetrics() *SecurityMetrics {
 			},
 			[]string{"component", "error_type"},
 		),
+		eventsDropped: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "neurosentry_events_dropped_total",
+				Help: "Kernel events dropped before processing, by reason (backpressure). The flagship SLO target is zero at the target event rate.",
+			},
+			[]string{"reason"},
+		),
 		webhookSentTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "neurosentry_webhook_sent_total",
 				Help: "Total number of webhook notifications sent",
 			},
 			[]string{"status"},
+		),
+		correlationFindings: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "neurosentry_correlation_findings_total",
+				Help: "Cross-layer correlation findings by rule, severity, and technique",
+			},
+			[]string{"rule", "severity", "technique"},
+		),
+		gatewayRequests: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "neurosentry_gateway_requests_total",
+				Help: "AI gateway requests by provider and action (allowed/blocked)",
+			},
+			[]string{"provider", "action"},
+		),
+		gatewayCostUSD: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "neurosentry_gateway_cost_usd_total",
+				Help: "Accumulated AI gateway cost in USD by tenant and provider",
+			},
+			[]string{"tenant", "provider"},
 		),
 		policyReloads: prometheus.NewCounter(
 			prometheus.CounterOpts{
@@ -189,7 +223,11 @@ func NewSecurityMetrics() *SecurityMetrics {
 		prometheus.MustRegister(m.pickleLoadsTotal)
 		prometheus.MustRegister(m.pickleDangerousDetected)
 		prometheus.MustRegister(m.errorsTotal)
+		prometheus.MustRegister(m.eventsDropped)
 		prometheus.MustRegister(m.webhookSentTotal)
+		prometheus.MustRegister(m.correlationFindings)
+		prometheus.MustRegister(m.gatewayRequests)
+		prometheus.MustRegister(m.gatewayCostUSD)
 		prometheus.MustRegister(m.policyReloads)
 		prometheus.MustRegister(m.configReloads)
 		prometheus.MustRegister(m.uptime)
@@ -268,12 +306,46 @@ func (m *SecurityMetrics) RecordError(component, errorType string) {
 	m.errorsTotal.WithLabelValues(component, errorType).Inc()
 }
 
+// RecordDrop records a kernel event dropped before processing (backpressure).
+// The flagship SLO target is zero at the target event rate; this counter makes
+// any drop directly observable in Prometheus / the console.
+func (m *SecurityMetrics) RecordDrop(reason string) {
+	if m == nil || m.eventsDropped == nil {
+		return
+	}
+	m.eventsDropped.WithLabelValues(reason).Inc()
+}
+
 // RecordWebhookSent records a webhook send attempt
 func (m *SecurityMetrics) RecordWebhookSent(status string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.webhookSentTotal.WithLabelValues(status).Inc()
+}
+
+// RecordCorrelationFinding records a cross-layer correlation finding.
+func (m *SecurityMetrics) RecordCorrelationFinding(rule, severity, technique string) {
+	if m == nil || m.correlationFindings == nil {
+		return
+	}
+	m.correlationFindings.WithLabelValues(rule, severity, technique).Inc()
+}
+
+// RecordGatewayRequest records an AI gateway request outcome.
+func (m *SecurityMetrics) RecordGatewayRequest(provider, action string) {
+	if m == nil || m.gatewayRequests == nil {
+		return
+	}
+	m.gatewayRequests.WithLabelValues(provider, action).Inc()
+}
+
+// AddGatewayCost accumulates AI gateway cost for a tenant/provider.
+func (m *SecurityMetrics) AddGatewayCost(tenant, provider string, usd float64) {
+	if m == nil || m.gatewayCostUSD == nil || usd <= 0 {
+		return
+	}
+	m.gatewayCostUSD.WithLabelValues(tenant, provider).Add(usd)
 }
 
 // RecordPolicyReload records a policy reload event

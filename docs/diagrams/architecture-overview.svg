@@ -91,15 +91,15 @@
 
   <!-- XDP -->
   <rect x="800" y="565" width="320" height="110" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
-  <text class="box-title" x="820" y="600">XDP</text>
-  <text class="box-sub" x="820" y="625">NIC driver / SKB-generic</text>
-  <text class="box-sub" x="820" y="650">~50 ns / packet · XDP_DROP</text>
+  <text class="box-title" x="820" y="600">TC ingress/egress</text>
+  <text class="box-sub" x="820" y="625">cloud-compatible · flow visibility</text>
+  <text class="box-sub" x="820" y="650">monitor-only · no packet drops</text>
 
   <!-- Uprobes -->
   <rect x="1140" y="565" width="320" height="110" rx="8" fill="#0d1117" stroke="#58a6ff" stroke-width="2.5" />
   <text class="box-title" x="1160" y="600">Uprobes</text>
-  <text class="box-sub" x="1160" y="625">torch::load · _pickle_*</text>
-  <text class="box-sub" x="1160" y="650">__reduce__ · TF · ONNX</text>
+  <text class="box-sub" x="1160" y="625">torch::load · pickle load</text>
+  <text class="box-sub" x="1160" y="650">pickle __reduce__ (security-critical)</text>
 
   <!-- Ring buffer arrows kernel -> user space (terminate cleanly in the gap, not on box borders) -->
   <line x1="280" y1="560" x2="280" y2="355" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
@@ -126,8 +126,8 @@
   <text class="kernel-label" x="480" y="935">trigger: skb (ingress + egress)</text>
 
   <rect x="800" y="875" width="320" height="80" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2" />
-  <text class="box-title" x="820" y="908">NIC driver / SKB</text>
-  <text class="kernel-label" x="820" y="935">trigger: xdp_buff (pre-stack)</text>
+  <text class="box-title" x="820" y="908">netdev  ·  packet flow</text>
+  <text class="kernel-label" x="820" y="935">trigger: skb (TC clsact hook)</text>
 
   <rect x="1140" y="875" width="320" height="80" rx="8" fill="#0d1117" stroke="#30363d" stroke-width="2" />
   <text class="box-title" x="1160" y="908">user libs  ·  ELF symbols</text>

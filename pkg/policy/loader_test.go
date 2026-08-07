@@ -89,7 +89,7 @@ func TestRuleMatches(t *testing.T) {
 	tests := []struct {
 		name     string
 		rule     Rule
-		event    interface{}
+		event    any
 		expected bool
 	}{
 		{
@@ -103,7 +103,7 @@ func TestRuleMatches(t *testing.T) {
 				},
 				Action: ActionBlock,
 			},
-			event: map[string]interface{}{
+			event: map[string]any{
 				"type":      "file_access",
 				"extension": ".pth",
 			},
@@ -120,7 +120,7 @@ func TestRuleMatches(t *testing.T) {
 				},
 				Action: ActionBlock,
 			},
-			event: map[string]interface{}{
+			event: map[string]any{
 				"type":      "file_access",
 				"extension": ".txt",
 			},
@@ -136,7 +136,7 @@ func TestRuleMatches(t *testing.T) {
 				},
 				Action: ActionBlock,
 			},
-			event: map[string]interface{}{
+			event: map[string]any{
 				"type": "file_access",
 			},
 			expected: false,
@@ -151,7 +151,7 @@ func TestRuleMatches(t *testing.T) {
 				},
 				Action: ActionBlock,
 			},
-			event: map[string]interface{}{
+			event: map[string]any{
 				"type": "pickle_dangerous",
 			},
 			expected: true,
@@ -167,7 +167,7 @@ func TestRuleMatches(t *testing.T) {
 				},
 				Action: ActionAllow,
 			},
-			event: map[string]interface{}{
+			event: map[string]any{
 				"type":     "network_blocked",
 				"dst_addr": "10.1.2.3",
 			},
@@ -184,7 +184,7 @@ func TestRuleMatches(t *testing.T) {
 				},
 				Action: ActionAllow,
 			},
-			event: map[string]interface{}{
+			event: map[string]any{
 				"type":     "network_blocked",
 				"dst_addr": "192.168.1.1",
 			},
@@ -206,7 +206,7 @@ func TestPolicyEvaluate(t *testing.T) {
 	pol := DefaultPolicy()
 
 	// Test pickle_dangerous event matches block rule
-	event := map[string]interface{}{
+	event := map[string]any{
 		"type": "pickle_dangerous",
 	}
 	action := pol.Evaluate(event)
@@ -215,7 +215,7 @@ func TestPolicyEvaluate(t *testing.T) {
 	}
 
 	// Test unknown event type defaults to allow
-	unknownEvent := map[string]interface{}{
+	unknownEvent := map[string]any{
 		"type": "unknown_event",
 	}
 	action = pol.Evaluate(unknownEvent)

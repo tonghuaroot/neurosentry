@@ -40,7 +40,7 @@ func LoadNeuroSentryUprobe() (*ebpf.CollectionSpec, error) {
 //	*NeuroSentryUprobeMaps
 //
 // See ebpf.CollectionSpec.LoadAndAssign documentation for details.
-func LoadNeuroSentryUprobeObjects(obj interface{}, opts *ebpf.CollectionOptions) error {
+func LoadNeuroSentryUprobeObjects(obj any, opts *ebpf.CollectionOptions) error {
 	spec, err := LoadNeuroSentryUprobe()
 	if err != nil {
 		return err

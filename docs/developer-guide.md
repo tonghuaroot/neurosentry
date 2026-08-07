@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- Go 1.24+ (matches `go.mod`)
+- Go 1.25+
 - Clang 12+
 - LLVM toolchain
 - libbpf development headers

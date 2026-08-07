@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build linux
-// +build linux
 
 package agent
 
@@ -10,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/neurosentry/neurosentry/pkg/bpf"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/tonghuaroot/neurosentry/pkg/bpf"
 )
 
 // BPFMetricsCollector collects metrics from eBPF programs

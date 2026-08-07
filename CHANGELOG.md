@@ -7,8 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] — 2026-05-07
 
-First tagged release. The agent + four eBPF programs (LSM `file_open`,
-TC ingress/egress, XDP, uprobes for PyTorch and CPython pickle) are
+First tagged release. The agent + three eBPF programs (LSM `file_open`,
+TC ingress/egress, uprobes for PyTorch and CPython pickle) are
 loadable and verified end to end on Linux 6.8 (aarch64) and Linux 6.14
 (amd64). See `docs/testing-results.md` for the EC2 run that recorded
 55,562 LSM events and 44,153 TC packets without verifier errors.
@@ -18,17 +18,17 @@ loadable and verified end to end on Linux 6.8 (aarch64) and Linux 6.14
   defense-in-depth, LSM `-EPERM` enforcement path, Capture The Model attack tiers).
   Embedded in `README.md` and `docs/architecture.md` in place of the previous
   ASCII box-drawing diagrams.
-- `demos/video/neurosentry-demo.mp4` — ~5-minute end-to-end demo video
-  with poster image, embedded in `README.md`. Walks the cold-open data
-  theft, kernel-level LSM blocking with full Prometheus → Grafana
-  observability B-roll, pickle reduce-bomb detection, network exfil
-  visibility with the webhook receiver panel, and the Capture The Model
-  lab tour.
+- `demos/record/` — end-to-end recording kit for the lab demo video:
+  preflight checker, host setup script, scene drivers, asciinema capture,
+  macOS `say`-based narration generator, ffmpeg muxing recipes, plus an
+  Aria (Microsoft Edge Neural TTS) variant.
 - `.dockerignore` — exclude the 13 GB demo model file and other local
   recording artifacts from the Docker build context (build was failing
   with "no space left on device" because the file was being fully copied
   into the layer; the file is dense `dd if=/dev/urandom` output when
-  produced by `start.sh`).
+  produced by `start.sh`, or a sparse stand-in when produced by
+  `truncate` in the recording kit — either way it does not belong in
+  the build context).
 - SECURITY.md with responsible disclosure guidelines (now points at
   `tonghuaroot@gmail.com`).
 - Dependabot configuration for automated dependency updates
@@ -39,27 +39,13 @@ loadable and verified end to end on Linux 6.8 (aarch64) and Linux 6.14
 - GitHub issue and PR templates
 - CODEOWNERS file for PR review automation
 - .gitattributes for proper binary file handling
-- **Data-driven LSM extension matching.** `pkg/bpf/neurosentry_lsm.c`
-  does not hard-code the protected extension list — the hook looks
-  up the file's actual extension in the `protected_extensions` BPF map
-  (key: 16-byte zero-padded extension string). Adding/removing
-  extensions in YAML changes what the kernel blocks.
-- **Trusted-PID death watcher.** `agent.pid_prune_interval` config
-  (default 5 s). Periodic goroutine in the controller walks
-  `trusted_pids`, removes entries whose process has exited
-  (`/proc/<pid>` missing), bumps `neurosentry_trusted_pids_pruned_total`.
-  Closes the PID-recycle TOCTOU window.
-- **Active-LSM-stack startup check.** Agent reads
-  `/sys/kernel/security/lsm` at startup and distinguishes three states:
-  `bpf` present → INFO "Verified"; file readable but `bpf` missing →
-  loud WARNING with the GRUB cmdline fix; file unreadable (agent in a
-  container without securityfs) → INFO "could not verify, trusting
-  loaded program." Closes the silent-enforcement-failure case.
 
 ### Changed
 - Fixed typo: `DisableCOHRE` renamed to `DisableCORE` in BPF config
 - Improved TC filter cleanup with proper error handling
 - Updated documentation to clarify TC vs XDP usage
+- README and demo materials no longer carry conference-specific framing;
+  the project is presented as a general-purpose open-source eBPF tool.
 - Demo `protected_extensions` config aligned with what the LSM hook actually
   enforces (`.safetensors / .gguf / .pth / .pt / .onnx / .h5`); `.pkl` is
   covered by the `pickle_protection` uprobes and `.bin` is intentionally
@@ -68,14 +54,6 @@ loadable and verified end to end on Linux 6.8 (aarch64) and Linux 6.14
   now searches the `aarch64-linux-gnu` and `lib64` multiarch directories in
   addition to `x86_64-linux-gnu`, so the uprobe attach succeeds on ARM64
   Linux distributions (Ubuntu 22.04+ aarch64, Amazon Linux 2023 graviton).
-- README adds a "How NeuroSentry compares to existing tools" table
-  positioning NeuroSentry against Falco, Tetragon, picklescan, modelscan,
-  NVIDIA Garak, and confidential containers — NeuroSentry is the
-  LSM-enforcement layer; it complements rather than replaces static
-  scanners and confidential compute.
-- Demo `docker-compose` defaults `block_exfiltration` and
-  `block_on_detect` to `false` to match the monitor-only / observe-only
-  semantics that ship in v1.0; opt-in comments inline.
 
 ### Fixed
 - **LSM `BPF_PROG` macro silently passed the BPF ctx pointer to the C
@@ -105,75 +83,18 @@ loadable and verified end to end on Linux 6.8 (aarch64) and Linux 6.14
 - `GetProcessChain()` now actually reads `/proc` to build process tree
 - `matchCIDR()` now uses proper CIDR parsing instead of string matching
 - TC cleanup errors are now logged instead of silently ignored
-- **`pkg/bpf/clearBPFMap` correctness.** The iterator passed nil as
-  the value-out, which made `cilium/ebpf` Lookup fail to unmarshal and
-  abort iteration after zero entries — so SIGHUP-driven config reload
-  left removed extensions live in the kernel. Now allocates a value
-  buffer matching the map's `ValueSize()` and passes `&value` to `Next`
-  so the iterator advances.
-- **`PruneDeadTrustedPIDs` race.** Snapshot-then-delete could remove a
-  freshly-trusted PID if `AddTrustedPID(pid)` ran concurrently between
-  the snapshot and the delete. Re-stat `/proc/<pid>` immediately
-  before each delete; if alive again, leave it alone. Counter only
-  bumps on actual deletes.
-- **Long-filename truncation bypass.** Earlier filename buffer logic
-  truncated names longer than 63 bytes, so the matcher silently missed
-  the extension. The hook now reads the trailing 16 bytes for the
-  extension match plus up to 64 bytes of leading filename for the
-  audit event payload, so filenames of any reasonable length still
-  hit the protected-extensions map. (The 16-byte tail-window padding
-  bypass is a separate, structural limit — see Known limitations.)
 
 ### Removed
 - Stale macOS arm64 binary committed at the repo root (build artifact;
   use `make build` or the Docker image instead).
-- `TASKS.md` and `ralph_run.md` — internal planning docs with
-  hard-coded user paths and credentials.
+- `TASKS.md` and `ralph_run.md` — internal pre-Arsenal-era planning docs
+  with hard-coded user paths and credentials. Already removed from `main`.
 
 ### Known limitations
 - **LSM enforces on extension only, not on path.** The hook reads
   `dentry->d_name` (final component) and matches the last 16 bytes
   against the `protected_extensions` BPF map. `protected_paths` in YAML
   is informational. Path-prefix enforcement via `bpf_d_path()` is v1.2.
-- **16-byte tail matcher misses any extension whose dot is outside the
-  trailing 16 bytes of `d_name`.** The matcher reads exactly the last 16
-  bytes of the filename and scans them for the trailing `.`. Any name
-  whose last `.` falls outside that window — `foo.safetensors.<16+ char
-  suffix>` is the canonical example, but it's a strictly more general
-  failure: any filename where the dot is more than 15 characters from
-  the end of the name produces "no extension" and is allowed. Extending
-  the scan window does NOT close this — the attacker can pad arbitrarily
-  far. Same root cause as the rename bypass; the structural fix is
-  `bpf_d_path()` (path-prefix matching) plus magic-byte content checks
-  (v1.2). For v1.0 we accept this and document it.
-- **Short-filename buffer over-read.** For names shorter than 16 bytes,
-  the LSM hook still issues a 16-byte `bpf_probe_read_kernel` from
-  `d_name.name`. The dentry-name kmalloc'd buffer is on a single page
-  so the read does not fault, and the loop boundary
-  (`valid_in_tail = real_len`) ignores the bytes beyond the real
-  filename — but it is technically a read past the trailing NUL. The
-  matcher's behavior is correct (extension lookup is bounded), but
-  noted here for correctness reviewers.
-- **`lsm/file_permission` and `lsm/mmap_file` source is present but not
-  attached** in v1.0 (commented `SEC()` in `pkg/bpf/neurosentry_lsm.c`,
-  pending verifier work). Consequences: a process that already holds an
-  open fd before the agent starts is not blocked on subsequent `read(2)`s,
-  and `mmap`-based loaders (vLLM, Triton, HF `transformers` with
-  `low_cpu_mem_usage=True`) are not covered by the LSM layer. Re-attaching
-  these is on the v1.1 list.
-- **The pickle uprobe does NOT do symbol-aware "dangerous symbol"
-  matching.** `pkg/bpf/neurosentry_uprobe.c::check_dangerous_stack` is a
-  stack-depth heuristic (`nr_stack > 8`); the `dangerous_symbols` BPF map
-  is currently populated from YAML but not consulted from BPF. The map
-  is informational only in v1.0. Real symbol-aware blocking — either via
-  user-space stack symbolization or via attaching to higher-level Python
-  frames — is on the v1.1 list.
-- **The pickle uprobe attaches to `PyInit__pickle`**, which fires once at
-  module-import time and not on subsequent `pickle.loads()` calls. Stock
-  CPython 3.10+ does not export the per-call C entry points used as the
-  preferred attach targets in `pkg/bpf/symbols.go`. Per-call observation
-  needs either a Python-level shim or attachment to `PyEval_*` frame
-  evaluation (v1.1).
 - **CIDR allowlist coarseness.** `addAllowedIP("10.0.0.0/8")` inserts
   the network base IP only, not the whole /8 block. Use individual IPs
   in YAML for v1.0; LPM-trie BPF map for v1.1.
@@ -182,15 +103,73 @@ loadable and verified end to end on Linux 6.8 (aarch64) and Linux 6.14
 - **Uprobes for pickle / PyTorch attach to host-side libpython /
   libtorch**. Containers loading their own libpython are not covered by
   the host attachment; per-container symbol resolution is v1.1 wiring.
-- **`bpftool map update trusted_pids` from outside the agent bypasses
-  the agent's userspace audit log.** The `AddTrustedPID` /
-  `RemoveTrustedPID` Go path emits an event; direct kernel-side
-  mutation does not. If your threat model includes mutually-distrusting
-  privileged co-tenants on the same host, do not rely on the agent log
-  as the sole source of truth for trusted-PID changes.
-- **PID-recycle window is bounded by the prune tick** (default 5 s,
+- **SIGHUP-driven config reload does not yet update the
+  `protected_extensions` BPF map** — startup populates it correctly,
+  but a runtime YAML change requires a container restart in v1.0.
+  Investigation pending in v1.1.
+- **PID-recycle window is bounded by the prune tick** (default 30 s,
   configurable via `agent.pid_prune_interval`). Trusted PIDs whose
   process has exited are removed on the next tick; tighter via
   per-process exit notifiers is roadmap.
 
+## [Unreleased]
+
+### Added
+- **Data-driven LSM extension matching.** `pkg/bpf/neurosentry_lsm.c` no
+  longer hard-codes the protected extension list — the hook now looks
+  up the file's actual extension in the `protected_extensions` BPF map
+  (key: 16-byte zero-padded extension string). Adding/removing
+  extensions in YAML now actually changes what the kernel blocks.
+- **Trusted-PID death watcher.** New `agent.pid_prune_interval` config
+  (default **5 s**, lowered from 30 s after Round-2 audit feedback that
+  longer windows are indefensible on production AI inference pools that
+  fork/restart workers every few seconds). Periodic goroutine in the
+  controller walks `trusted_pids`, removes entries whose process has
+  exited (`/proc/<pid>` missing), and bumps a new
+  `neurosentry_trusted_pids_pruned_total` Prometheus counter. Closes
+  the PID-recycle TOCTOU window.
+- **Long-filename support.** LSM filename buffer logic re-architected
+  to read only the last 16 bytes (where the extension lives) plus up
+  to 64 bytes of leading filename for the audit event. Defeats the
+  64-byte-filename-truncation bypass found in the v1.0 audit
+  (filenames > 63 bytes had their extension truncated off and the
+  matcher silently missed).
+- **`pkg/bpf/clearBPFMap` correctness fix.** The iterator passed nil as
+  the value-out, which made `cilium/ebpf` Lookup fail to unmarshal and
+  abort iteration after zero entries. After the v1.0 round-1 change made
+  `protected_extensions` data-driven, this directly broke the
+  SIGHUP-driven config reload (removed extensions stayed live in the
+  kernel after a YAML change). Allocate a value buffer matching the
+  map's `ValueSize()` and pass `&value` to `Next` so the iterator
+  actually advances.
+- **`PruneDeadTrustedPIDs` race fix.** Previously snapshot-then-delete
+  could remove a freshly-trusted PID if `AddTrustedPID(pid)` ran
+  concurrently between the snapshot and the delete. Re-stat
+  `/proc/<pid>` immediately before each delete; if alive again, leave
+  it alone. Counter only bumps on actual deletes.
+
+### Changed
+- ARSENAL_SUBMISSION:
+  - **§1** anchored with four real 2024–2025 incidents (Hugging Face
+    pickles, JFrog "nullifAI", torchtriton, Ray Dashboard CVE).
+  - **§3.2** added a competitive comparison table (Falco, Tetragon,
+    picklescan, modelscan, Garak, confidential containers) so the
+    "what's new" challenge is defused up front.
+  - **§3.2 over-claim** ("no userspace can bypass without a kernel
+    exploit") qualified to "extension-and-PID decision" with explicit
+    forward-reference to the path bypass in §3.3.
+  - **§3.3 honest limits** expanded from 5 → 10; collapsed a duplicate
+    sentence Round-2 caught.
+  - **§5 EU AI Act framing** tightened: explicit Annex IV §2(g) cite,
+    explicit non-compliance-product disclaimer, explicit
+    NeuroSentry-fills-which-row scoping.
+- demo `docker-compose` config no longer ships with `block_exfiltration:
+  true` and `block_on_detect: true` (both flatly contradicted §3.3 and
+  would mislead operators). Defaults are now `false` with v1.1 opt-in
+  comments inline.
+- `MODELS_DIR` in `demos/record/scenes-vm.sh` is now derived from
+  `git rev-parse --show-toplevel` instead of a hard-coded
+  maintainer-machine absolute path.
+
+[Unreleased]: https://github.com/tonghuaroot/neurosentry/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/tonghuaroot/neurosentry/releases/tag/v1.0.0

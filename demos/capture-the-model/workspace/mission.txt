@@ -65,5 +65,5 @@ QUICK CHECKS
 Brisk, honest, technical. Document every attempt -- the audit trail
 is half the value of the exercise. Good hunting.
 
-  Report findings : github.com/tonghuaroot/neurosentry/issues
+  Report findings : challenges@neurosentry.io
   Source          : github.com/tonghuaroot/neurosentry

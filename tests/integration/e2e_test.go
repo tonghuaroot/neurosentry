@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tonghuaroot/neurosentry/pkg/bpf"
-	"github.com/tonghuaroot/neurosentry/pkg/config"
-	"github.com/tonghuaroot/neurosentry/pkg/policy"
+	"github.com/neurosentry/neurosentry/pkg/bpf"
+	"github.com/neurosentry/neurosentry/pkg/config"
+	"github.com/neurosentry/neurosentry/pkg/policy"
 )
 
 // TestE2ELSMFileProtection tests the complete LSM file protection flow
@@ -42,11 +42,11 @@ func TestE2ELSMFileProtection(t *testing.T) {
 	cfg := &config.Config{
 		Protection: config.ProtectionConfig{
 			ModelFIM: config.ModelFIMConfig{
-				Enabled:             true,
-				EnforceMode:         true,
-				LogAllAccess:        true,
-				ProtectedExtensions: []string{".safetensors"},
-				ProtectedPaths:      []string{tmpDir},
+				Enabled:              true,
+				EnforceMode:          true,
+				LogAllAccess:         true,
+				ProtectedExtensions:  []string{".safetensors"},
+				ProtectedPaths:       []string{tmpDir},
 			},
 		},
 	}
@@ -244,11 +244,11 @@ func TestE2EFullStack(t *testing.T) {
 	cfg := &config.Config{
 		Protection: config.ProtectionConfig{
 			ModelFIM: config.ModelFIMConfig{
-				Enabled:             true,
-				EnforceMode:         true,
-				LogAllAccess:        true,
-				ProtectedExtensions: []string{".safetensors", ".gguf", ".pth"},
-				ProtectedPaths:      []string{tmpDir},
+				Enabled:              true,
+				EnforceMode:          true,
+				LogAllAccess:         true,
+				ProtectedExtensions:  []string{".safetensors", ".gguf", ".pth"},
+				ProtectedPaths:       []string{tmpDir},
 			},
 			NetworkContainment: config.NetworkContainmentConfig{
 				Enabled:           true,

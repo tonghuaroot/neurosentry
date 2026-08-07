@@ -69,7 +69,7 @@ sudo dmesg | tail -20
 | Program | Type | Purpose | File |
 |---------|------|---------|------|
 | LSM Hook | file_open | Monitor file access to model files | neurosentry_lsm_simple.c |
-| LSM Hook | file_permission | Monitor read operations | neurosentry_lsm.c |
+| LSM Hook | file_permission | **Disabled** — not attached (verifier issues on kernel 6.14; `file_open` provides coverage). The `mmap_file` hook in this source is disabled for the same reason. | neurosentry_lsm.c |
 | **TC (Recommended)** | tc | Network monitoring (cloud-compatible) | neurosentry_tc.c |
 | XDP | xdp | Network packet filtering (limited cloud support) | neurosentry_xdp.c |
 | Uprobe | uprobe/uretprobe | Framework monitoring (PyTorch, TensorFlow) | neurosentry_uprobe.c |

@@ -19,7 +19,7 @@ services:
       - /sys/kernel/debug:/sys/kernel/debug:ro
       - /sys/fs/bpf:/sys/fs/bpf
       - ./config/neurosentry.yaml:/etc/neurosentry/config.yaml:ro
-      - ./model-data:/models:ro
+      - model-data:/models:ro
       - ./logs:/var/log/neurosentry
     environment:
       - NEUROSENTRY_LOG_LEVEL=info
@@ -47,7 +47,7 @@ services:
     privileged: true
     network_mode: host
     volumes:
-      - ./model-data:/target:ro
+      - model-data:/target:ro
       - ./workspace:/workspace
       - ./scoring:/scoring:ro
     command: sleep infinity
@@ -67,7 +67,7 @@ services:
     container_name: scoring
     network_mode: host
     volumes:
-      - ./model-data:/models:ro
+      - model-data:/models:ro
       - ./workspace:/workspace:ro
       - ./logs:/var/log/neurosentry:ro
       - ./scoring/data:/data
@@ -117,6 +117,8 @@ services:
       - "neurosentry.challenge=true"
 
 volumes:
+  model-data:
+    driver: local
   prometheus-data:
     driver: local
   grafana-data:

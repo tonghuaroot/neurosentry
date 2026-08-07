@@ -6,7 +6,35 @@ package agent
 import (
 	"sync"
 	"testing"
+
+	dto "github.com/prometheus/client_model/go"
 )
+
+func TestRecordDrop(t *testing.T) {
+	m := testSecurityMetrics
+	if m.eventsDropped == nil {
+		t.Fatal("eventsDropped counter not initialized")
+	}
+	counter := m.eventsDropped.WithLabelValues("event_chan_full")
+	before := counterValue(t, counter)
+	m.RecordDrop("event_chan_full")
+	m.RecordDrop("event_chan_full")
+	if got := counterValue(t, counter) - before; got != 2 {
+		t.Errorf("expected 2 drops recorded, got delta %v", got)
+	}
+	// Nil receiver must be safe (metrics may be disabled).
+	var nilM *SecurityMetrics
+	nilM.RecordDrop("event_chan_full") // must not panic
+}
+
+func counterValue(t *testing.T, c interface{ Write(*dto.Metric) error }) float64 {
+	t.Helper()
+	var mm dto.Metric
+	if err := c.Write(&mm); err != nil {
+		t.Fatalf("read counter: %v", err)
+	}
+	return mm.GetCounter().GetValue()
+}
 
 // Global metrics instance for all tests (to avoid duplicate Prometheus registration)
 var testSecurityMetrics = NewSecurityMetrics()

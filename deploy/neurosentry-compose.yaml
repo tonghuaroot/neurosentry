@@ -1,0 +1,43 @@
+protection:
+  model_fim:
+    enabled: true
+    protected_extensions: [".safetensors", ".gguf", ".pth", ".pt", ".onnx", ".h5"]
+    protected_paths: ["/models"]
+    enforce_mode: true
+    log_all_access: true
+  network_containment:
+    enabled: true
+    block_exfiltration: true
+    exfil_threshold_mb: 100
+    allowed_egress: ["10.0.0.0/8", "172.16.0.0/12", "127.0.0.0/8"]
+  pickle_protection:
+    enabled: true
+    dangerous_symbols: ["os.system", "eval", "exec", "__import__", "subprocess"]
+  pytorch_observability:
+    enabled: true
+agent:
+  metrics_port: 2112
+  log_level: info
+  log_format: json
+audit:
+  enabled: true
+  log_path: /var/log/neurosentry/audit.jsonl
+  # Durable, queryable audit store backed by the production Postgres service.
+  # db_driver selects the backend (sqlite | postgres); db_dsn is the pgx DSN.
+  # The Postgres backend uses github.com/jackc/pgx/v5/stdlib (pure Go, CGO-free).
+  db_driver: postgres
+  db_dsn: "postgres://neurosentry:neurosentry@postgres:5432/neurosentry?sslmode=disable"
+web:
+  enabled: true
+  listen_addr: ":8080"
+platform:
+  enabled: true
+  snapshot_path: /var/lib/neurosentry/control-plane.json
+  bootstrap_tenant: default
+  bootstrap_email: admin@neurosentry.local
+  bootstrap_password: ""  # empty = auto-generate, logged once on first boot
+policy_path: /etc/neurosentry/policy.yaml
+gateway:
+  enabled: true
+  listen_addr: ":8081"
+  block_on_detect: true

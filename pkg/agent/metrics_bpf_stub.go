@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //go:build !linux
-// +build !linux
 
 package agent
 
 import (
-	"github.com/tonghuaroot/neurosentry/pkg/bpf"
+	"github.com/neurosentry/neurosentry/pkg/bpf"
 )
 
 // BPFMetricsCollector stub for non-Linux systems

@@ -119,6 +119,16 @@ struct {
     __type(value, __u8);
 } blocked_ips SEC(".maps");
 
+// ns_tc_cfg[0] gates enforcement: 1 = drop egress to a blocked destination
+// (block_exfiltration), 0 = monitor-only (log + pass). Userspace sets this from
+// network_containment.block_exfiltration.
+struct {
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u8);
+} ns_tc_cfg SEC(".maps");
+
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 128 * 1024);
@@ -309,16 +319,23 @@ int neurosentry_tc_egress(struct __sk_buff *skb)
         dport = bpf_ntohs(udp->dest);
     }
 
-    // Check if destination is in blocked list (monitor only)
+    // Check if the destination is on the egress blocklist.
     __u8 suspicious = 0;
     __u8 *blocked = bpf_map_lookup_elem(&blocked_ips, &daddr);
     if (blocked && *blocked) {
         suspicious = 1;
         send_event(saddr, daddr, sport, dport, protocol, 1, 1);
+        update_stats(1, skb->len, suspicious);
+        // Enforce: when block_exfiltration is enabled, DROP egress to a blocked
+        // destination. Otherwise stay monitor-only (log + pass).
+        __u32 zero = 0;
+        __u8 *enforce = bpf_map_lookup_elem(&ns_tc_cfg, &zero);
+        if (enforce && *enforce) {
+            return TC_ACT_SHOT;
+        }
+        return TC_ACT_OK;
     }
 
     update_stats(1, skb->len, suspicious);
-
-    // ALWAYS pass traffic - monitor only
     return TC_ACT_OK;
 }

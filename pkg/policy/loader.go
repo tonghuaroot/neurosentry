@@ -179,7 +179,7 @@ func (p *Policy) Validate() error {
 }
 
 // Matches checks if a rule matches an event
-func (r *Rule) Matches(event interface{}) bool {
+func (r *Rule) Matches(event any) bool {
 	if !r.Enabled {
 		return false
 	}
@@ -200,9 +200,9 @@ func (r *Rule) Matches(event interface{}) bool {
 }
 
 // matchFileAccess checks if a file access event matches the rule
-func (r *Rule) matchFileAccess(event interface{}) bool {
+func (r *Rule) matchFileAccess(event any) bool {
 	// Extract event data using reflection or type assertion
-	ev, ok := event.(map[string]interface{})
+	ev, ok := event.(map[string]any)
 	if !ok {
 		// Try struct-based event
 		return r.matchFileAccessStruct(event)
@@ -217,7 +217,7 @@ func (r *Rule) matchFileAccess(event interface{}) bool {
 	if len(r.Condition.Extensions) > 0 {
 		ext, _ := ev["extension"].(string)
 		if ext == "" {
-			if data, ok := ev["data"].(map[string]interface{}); ok {
+			if data, ok := ev["data"].(map[string]any); ok {
 				ext, _ = data["extension"].(string)
 			}
 		}
@@ -237,7 +237,7 @@ func (r *Rule) matchFileAccess(event interface{}) bool {
 	if len(r.Condition.Paths) > 0 {
 		filePath, _ := ev["file_path"].(string)
 		if filePath == "" {
-			if data, ok := ev["data"].(map[string]interface{}); ok {
+			if data, ok := ev["data"].(map[string]any); ok {
 				filePath, _ = data["file_path"].(string)
 			}
 		}
@@ -257,7 +257,7 @@ func (r *Rule) matchFileAccess(event interface{}) bool {
 }
 
 // matchFileAccessStruct handles struct-based events
-func (r *Rule) matchFileAccessStruct(event interface{}) bool {
+func (r *Rule) matchFileAccessStruct(event any) bool {
 	// Use reflection to extract fields
 	// This handles the agent.Event struct type
 	v := reflect.ValueOf(event)
@@ -306,8 +306,8 @@ func (r *Rule) matchFileAccessStruct(event interface{}) bool {
 }
 
 // matchPickleDangerous checks for dangerous pickle events
-func (r *Rule) matchPickleDangerous(event interface{}) bool {
-	ev, ok := event.(map[string]interface{})
+func (r *Rule) matchPickleDangerous(event any) bool {
+	ev, ok := event.(map[string]any)
 	if ok {
 		eventType, _ := ev["type"].(string)
 		return eventType == "pickle_dangerous"
@@ -330,8 +330,8 @@ func (r *Rule) matchPickleDangerous(event interface{}) bool {
 }
 
 // matchNetworkEgress checks network egress events
-func (r *Rule) matchNetworkEgress(event interface{}) bool {
-	ev, ok := event.(map[string]interface{})
+func (r *Rule) matchNetworkEgress(event any) bool {
+	ev, ok := event.(map[string]any)
 	if !ok {
 		return r.matchNetworkEgressStruct(event)
 	}
@@ -345,7 +345,7 @@ func (r *Rule) matchNetworkEgress(event interface{}) bool {
 	if len(r.Condition.Destinations) > 0 {
 		dstAddr, _ := ev["dst_addr"].(string)
 		if dstAddr == "" {
-			if data, ok := ev["data"].(map[string]interface{}); ok {
+			if data, ok := ev["data"].(map[string]any); ok {
 				dstAddr, _ = data["dst_addr"].(string)
 			}
 		}
@@ -363,7 +363,7 @@ func (r *Rule) matchNetworkEgress(event interface{}) bool {
 }
 
 // matchNetworkEgressStruct handles struct-based network events
-func (r *Rule) matchNetworkEgressStruct(event interface{}) bool {
+func (r *Rule) matchNetworkEgressStruct(event any) bool {
 	v := reflect.ValueOf(event)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
@@ -385,8 +385,8 @@ func (r *Rule) matchNetworkEgressStruct(event interface{}) bool {
 }
 
 // matchModelLoad checks model load events
-func (r *Rule) matchModelLoad(event interface{}) bool {
-	ev, ok := event.(map[string]interface{})
+func (r *Rule) matchModelLoad(event any) bool {
+	ev, ok := event.(map[string]any)
 	if ok {
 		eventType, _ := ev["type"].(string)
 		return eventType == "model_load"
@@ -475,7 +475,7 @@ func DefaultPolicy() *Policy {
 }
 
 // Evaluate evaluates an event against the policy and returns the action
-func (p *Policy) Evaluate(event interface{}) Action {
+func (p *Policy) Evaluate(event any) Action {
 	for _, rule := range p.Rules {
 		if rule.Matches(event) {
 			return rule.Action
